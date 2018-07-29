@@ -27,9 +27,9 @@ BTFX = Client(
 
 AUTH_PASS = os.environ.get('AUTH_PASS')
 
-USERSDATA = {}
 
-def read_authentications():
+
+def read_userdata():
     files = glob.glob('data/usersdata.pickle')
     if not files:
         return {}
@@ -43,7 +43,7 @@ def read_authentications():
         return pickle_object
 
 
-def save_authentications():
+def save_userdata():
     userdata_file = "data/usersdata.pickle"
     ensure_dir(userdata_file)
     with open(userdata_file, 'wb') as outfile:
@@ -64,9 +64,11 @@ def ensure_dir(file_path):
 
 ############ CALLBACK FUNCTIONS
 def cb_start(bot, update):
+    print(f"3USERDATA IS {USERSDATA}")
     update.message.reply_text('Here be Dragons')
 
 def cb_auth(bot, update, args):
+    global USERSDATA
     chat_id = update.message.chat.id
     username = update.message.chat.username
     first_name = update.message.chat.first_name
@@ -86,6 +88,8 @@ def cb_auth(bot, update, args):
     else:
         user_data = {"authenticated" : "no", "failed_auth" : 0}
 
+    print(user_data)
+
     if botpass == AUTH_PASS:
         message = "<pre>authentication successfull </pre>"
         bot.send_message(chat_id, text=message, parse_mode='HTML')
@@ -99,8 +103,9 @@ def cb_auth(bot, update, args):
         user_data["failed_auth"] += 1
         user_data["telegram_user"] = username
         user_data["telegram_name"] = f"{first_name} {last_name}"
-        USERSDATA[chat_id] = user_data
-        save_authentications()
+
+    USERSDATA[chat_id] = user_data
+    save_userdata()
 
 
 def cb_error(bot, update, boterror):
@@ -110,14 +115,14 @@ def cb_error(bot, update, boterror):
 
 def main():
     LOGGER.info("Here be dragons")
-
+    print(f"1USERDATA IS {USERSDATA}")
     updater = Updater(os.environ.get('TELEGRAM_TOKEN'))
     # Get the dispatcher to register handlers
     qdp = updater.dispatcher
 
     # on different commands - answer in Telegram
     qdp.add_handler(CommandHandler("start", cb_start))
-    qdp.add_handler(CommandHandler("auth", cb_auth,pass_args=True))
+    qdp.add_handler(CommandHandler("auth", cb_auth, pass_args=True))
 
     # log all errors
     qdp.add_error_handler(cb_error)
@@ -131,6 +136,8 @@ def main():
     updater.idle()
 
 
+
+USERSDATA = read_userdata()
 
 if __name__ == "__main__":
     main()
