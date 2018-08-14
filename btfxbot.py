@@ -62,9 +62,8 @@ class Btfxbot:
         qdp = updater.dispatcher
 
         # on different commands - answer in Telegram
-        qdp.add_handler(CommandHandler("start", self.cb_start))
+        qdp.add_handler(CommandHandler("start", self.cb_start, pass_user_data=True))
         qdp.add_handler(CommandHandler("auth", self.cb_auth, pass_args=True))
-
 
 
         # Add conversation handler with the states GENDER, PHOTO, LOCATION and BIO
@@ -79,9 +78,19 @@ class Btfxbot:
         #    fallbacks=[CommandHandler('cancel', cancel)]
         #)
         qdp.add_handler(
-            CallbackQueryHandler(self.cb_new_order_button, pattern=r'^neworder:\w+:\w+$')
+            CallbackQueryHandler(
+                self.cb_btn_cancel_order,
+                pattern=r'^cancel_order:[0-9]+$')
             )
+
+        qdp.add_handler(
+            CallbackQueryHandler(
+                self.cb_btn_orders,
+                pattern=r'^orders:\w+$')
+            )
+
         qdp.add_handler(CommandHandler("neworder", self.cb_new_order, pass_args=True))
+        qdp.add_handler(CommandHandler("orders", self.cb_orders, pass_args=True))
 
         # log all errors
         qdp.add_error_handler(self.cb_error)
@@ -246,7 +255,7 @@ class Btfxbot:
         buttons = [
             #InlineKeyboardButton('Update Price', callback_data=f"neworder:updprice:{orderid}"),
             #InlineKeyboardButton('Update Volume', callback_data=f"neworder:updvolume:{orderid}"),
-            InlineKeyboardButton('Cancel order', callback_data=f"neworder:cancel:{orderid}")
+            InlineKeyboardButton('Cancel order', callback_data=f"cancel_order:{orderid}")
         ]
         keyboard = InlineKeyboardMarkup([buttons])
 
@@ -256,26 +265,78 @@ class Btfxbot:
             LOGGER.info(f"coult not send message keyboard to {chat_id}")
             LOGGER.info(error)
 
+    #Bitfinex requests
+    def cb_orders(self, bot, update, args):
+        LOGGER.info(f"{update.message.chat.username} : /neworder {args}")
+        chat_id = update.message.chat.id
 
-    def cb_new_order_button(self, bot, update):
+        if chat_id not in self.userdata:
+            LOGGER.info("chat id not found in list of chats")
+            message = "<pre>You'll Clean That Up Before You Leave</pre>"
+            bot.send_message(chat_id, text=message, parse_mode='HTML')
+            return 1
+        authenticated = self.userdata[chat_id]['authenticated']
+        if authenticated == "no":
+            LOGGER.info("user id not authenticated")
+            message = "<pre>You'll Clean That Up Before You Leave</pre>"
+            bot.send_message(chat_id, text=message, parse_mode='HTML')
+            return 1
+
+        buttons = [
+            InlineKeyboardButton('Margin', callback_data="orders:margin"),
+            InlineKeyboardButton('Exchange', callback_data="orders:exchange")
+        ]
+        keyboard = InlineKeyboardMarkup([buttons])
+
+        try:
+            update.message.reply_text("Whice orders do you want to see ?", reply_markup=keyboard)
+        except (TimedOut, TelegramError) as error:
+            print(f"coult not send message keyboard to {chat_id}")
+            print(error)
+        return 0
+
+
+    def cb_btn_orders(self, bot, update):
         query = update.callback_query
         update.callback_query.answer()
-        chatid = update.callback_query.message.chat.id
-        LOGGER.info(f"i got {query.data} from {chatid}")
+        chat_id = update.callback_query.message.chat.id
+        LOGGER.info(f"i got {query.data} from {chat_id}")
 
-        action = query.data.split(':')[1]
-        orderid = int(query.data.split(':')[2])
-        LOGGER.info(f"action  : {action}")
-        LOGGER.info(f"orderid : {orderid}")
+        orders_type = query.data.split(':')[1]
+        LOGGER.info(f"orders_type : {orders_type}")
 
-        if action == "cancel":
-            del_order = self.btfx_client.delete_order(orderid)
-            LOGGER.info(del_order)
+        active_orders = self.btfx_client.active_orders()
+        for order in active_orders:
+            order_id = order['id']
+            symbol = order['symbol']
+            side = order['side']
+            original_amount = order['original_amount']
+            price = order['price']
+            lines = []
+            lines.append(f"{order_id}: {symbol} {side} {original_amount}@{price}")
+            composed_message = ''.join(lines)
+            buttons = [InlineKeyboardButton('cancel', callback_data=f'cancel_order:{order_id}')]
+            keyboard = InlineKeyboardMarkup([buttons])
+            try:
+                bot.send_message(chat_id, text=composed_message, reply_markup=keyboard)
+            except (TimedOut, TelegramError) as error:
+                print(f"could not send message {composed_message} to {chat_id}")
+                print(error)
 
-        #needs websocket v2, i will add the functionality  as soon as i have websocket
-        if action == "updprice":
-            return
-        if action == "updvolume":
-            return
+        return 0
+
+
+
+    def cb_btn_cancel_order(self, bot, update):
+        query = update.callback_query
+        update.callback_query.answer()
+        chat_id = update.callback_query.message.chat.id
+        LOGGER.info(f"i got {query.data} from {chat_id}")
+
+        order_id = int(query.data.split(':')[1])
+        LOGGER.info(f"orderid : {order_id}")
+
+        del_order = self.btfx_client.delete_order(order_id)
+        LOGGER.info(f"del_order : {del_order}")
 
         return
