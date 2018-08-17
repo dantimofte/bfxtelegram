@@ -13,6 +13,12 @@ import glob
 import json
 import pickle
 import re
+from  datetime import datetime
+from math import pi
+import pandas as pd
+from bokeh.plotting import figure
+from bokeh.io import export_png
+from bokeh.layouts import column
 from telegram.ext import Updater
 from telegram.ext import CallbackQueryHandler, CommandHandler
 #ConversationHandler , RegexHandler
@@ -20,6 +26,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import (TelegramError, TimedOut)
 
 from bitfinex import ClientV1 as Client
+from bitfinex import ClientV2 as Client2
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -33,6 +40,107 @@ def isnumber(pnumber):
         return True
     else:
         return False
+
+def get_date(unixtime):
+    time_stamp = unixtime / 1000
+    formated_date = datetime.utcfromtimestamp(time_stamp).strftime('%Y-%m-%d %H:%M:%S')
+    return formated_date
+
+def ensure_dir(file_path):
+    directory = os.path.dirname(file_path)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+def create_graph(candles_data,symbol):
+    candles_df = pd.DataFrame(
+        candles_data,
+        columns=['date', 'open', 'close', 'high', 'low', 'volume']
+    )
+
+    candles_df['date'] = candles_df['date'].apply(get_date)
+    candles_df['volume'] = candles_df['volume'].astype(int)
+    candles_df["date"] = pd.to_datetime(candles_df["date"])
+
+    # Window length for moving average
+    window_length = 14
+    candles_df['seq'] = candles_df['date']
+    close = candles_df['close'][::-1]
+    # Get the difference in price from previous step
+    delta = close.diff()
+    # Make the positive gains (up) and negative gains (down) Series
+    up_gains, down_gains = delta.copy(), delta.copy()
+    up_gains[up_gains < 0] = 0
+    down_gains[down_gains > 0] = 0
+    # Calculate the EWMA
+    roll_up1 = up_gains.ewm(
+        com=window_length,
+        min_periods=0,
+        adjust=True,
+        ignore_na=False
+    ).mean()
+
+    roll_down1 = down_gains.abs().ewm(
+        com=window_length,
+        min_periods=0,
+        adjust=True,
+        ignore_na=False
+    ).mean()
+
+    # Calculate the RSI based on EWMA
+    rs1 = roll_up1 / roll_down1
+    rsi1 = 100.0 - (100.0 / (1.0 + rs1))
+    candles_df['rsi_ewma'] = rsi1
+    candles_df = candles_df[::-1][16:]
+
+    inc = candles_df.close > candles_df.open
+    dec = candles_df.open > candles_df.close
+    candle_width = 30*60*1000 # half an hour in ms
+
+    tools = "pan,wheel_zoom,box_zoom,reset,save"
+
+    candles_graph = figure(x_axis_type="datetime", tools=tools, plot_width=1000, title=symbol.upper())
+    candles_graph.xaxis.major_label_orientation = pi/4
+    candles_graph.grid.grid_line_alpha = 0.3
+    candles_graph.segment(
+        candles_df.date,
+        candles_df.high,
+        candles_df.date,
+        candles_df.low,
+        color="black"
+    )
+
+    candles_graph.vbar(
+        candles_df.date[inc],
+        candle_width,
+        candles_df.open[inc],
+        candles_df.close[inc],
+        fill_color="#31d8a1",
+        line_color="black"
+    )
+    candles_graph.vbar(
+        candles_df.date[dec],
+        candle_width,
+        candles_df.open[dec],
+        candles_df.close[dec],
+        fill_color="#F2583E",
+        line_color="black"
+    )
+
+    rsi_graph = figure(plot_width=1000, plot_height=100, y_range=(0, 100))
+    rsi_graph.xaxis.visible = False
+    rsi_graph.multi_line(
+        xs=[candles_df.seq]*4,
+        ys=[
+            candles_df.rsi_ewma,
+            [20]*candles_df.shape[0],
+            [50]*candles_df.shape[0],
+            [80]*candles_df.shape[0]
+        ],
+        line_color=['red', 'black', 'gray', 'black'],
+        line_width=1
+    )
+
+    export_png(column(candles_graph, rsi_graph), filename="graph.png")
 
 REST_TYPES = {
     "mmarket" : "market",
@@ -55,6 +163,7 @@ class Btfxbot:
         self.userdata = self.read_userdata()
         self.auth_pass = auth_pass
         self.btfx_client = Client(btfx_key, btfx_secret)
+        self.btfx_client2 = Client2(btfx_key, btfx_secret)
         self.btfx_symbols = self.btfx_client.symbols()
 
         updater = Updater(telegram_token)
@@ -62,7 +171,8 @@ class Btfxbot:
         qdp = updater.dispatcher
 
         # on different commands - answer in Telegram
-        qdp.add_handler(CommandHandler("start", self.cb_start, pass_user_data=True))
+        qdp.add_handler(CommandHandler("start", self.cb_start))
+        qdp.add_handler(CommandHandler("graph", self.cb_graph, pass_args=True))
         qdp.add_handler(CommandHandler("auth", self.cb_auth, pass_args=True))
 
 
@@ -118,7 +228,7 @@ class Btfxbot:
 
     def save_userdata(self):
         userdata_file = "data/usersdata.pickle"
-        self.ensure_dir(userdata_file)
+        ensure_dir(userdata_file)
         with open(userdata_file, 'wb') as outfile:
             pickle.dump(self.userdata, outfile)
 
@@ -127,17 +237,40 @@ class Btfxbot:
             json.dump(self.userdata, outfile)
 
 
-    def ensure_dir(self, file_path):
-        directory = os.path.dirname(file_path)
-        if not os.path.exists(directory):
-            os.makedirs(directory)
-
-
-
-
     ############ CALLBACK FUNCTIONS
     def cb_start(self, bot, update):
         update.message.reply_text('Here be Dragons')
+
+
+    def cb_graph(self, bot, update, args):
+        LOGGER.info(f"{update.message.chat.username} : /graph {args}")
+        chat_id = update.message.chat.id
+
+        if chat_id not in self.userdata:
+            LOGGER.info("chat id not found in list of chats")
+            message = "<pre>You'll Clean That Up Before You Leave</pre>"
+            bot.send_message(chat_id, text=message, parse_mode='HTML')
+            return
+        authenticated = self.userdata[chat_id]['authenticated']
+        if authenticated == "no":
+            LOGGER.info("user id not authenticated")
+            message = "<pre>You'll Clean That Up Before You Leave</pre>"
+            bot.send_message(chat_id, text=message, parse_mode='HTML')
+            return
+
+        symbol = args[0] if args else "iotusd"
+
+        if symbol not in self.btfx_symbols:
+            msgtext = f"incorect symbol , available pairs are {self.btfx_symbols}"
+            bot.send_message(chat_id, text=msgtext, parse_mode='HTML')
+            return
+
+        tradepair = f"t{symbol.upper()}"
+
+        chat_id = update.message.chat.id
+        candles_data = self.btfx_client2.candles("1h", tradepair, "hist", limit='120')
+        create_graph(candles_data,symbol)
+        bot.send_photo(chat_id=chat_id, photo=open('graph.png', 'rb'))
 
     def cb_auth(self, bot, update, args):
         chat_id = update.message.chat.id
