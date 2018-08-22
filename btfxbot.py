@@ -13,12 +13,12 @@ import glob
 import json
 import pickle
 import re
-from  datetime import datetime
+from  datetime import datetime, timedelta
 from math import pi
 import pandas as pd
 from bokeh.plotting import figure
 from bokeh.io import export_png
-from bokeh.layouts import column
+from bokeh.layouts import layout
 from telegram.ext import Updater
 from telegram.ext import CallbackQueryHandler, CommandHandler
 #ConversationHandler , RegexHandler
@@ -51,7 +51,25 @@ def ensure_dir(file_path):
     if not os.path.exists(directory):
         os.makedirs(directory)
 
-def create_graph(candles_data,symbol):
+def create_graph(candles_data, active_orders, orders_data, symbol, **kwargs):
+    colors_dict = {
+        "normal" : ["#98FB98", "#FF0000", "#FF0000", "#98FB98"],
+        "colorblind" : ["#00ee00", "#ff00ff", "#ff00ff", "#00ee00"],
+        "monochrome" : ["white", "black", "black", "black"]
+    }
+
+    up_color = colors_dict['normal'][0]
+    down_color = colors_dict['normal'][1]
+    sell_order_color = colors_dict['normal'][2]
+    buy_order_color = colors_dict['normal'][3]
+
+    for key, value in kwargs.items():
+        if key == 'graphtheme':
+            up_color = colors_dict[value][0]
+            down_color = colors_dict[value][1]
+            sell_order_color = colors_dict[value][2]
+            buy_order_color = colors_dict[value][3]
+
     candles_df = pd.DataFrame(
         candles_data,
         columns=['date', 'open', 'close', 'high', 'low', 'volume']
@@ -60,6 +78,8 @@ def create_graph(candles_data,symbol):
     candles_df['date'] = candles_df['date'].apply(get_date)
     candles_df['volume'] = candles_df['volume'].astype(int)
     candles_df["date"] = pd.to_datetime(candles_df["date"])
+    max_price = candles_df['high'].max()
+    min_price = candles_df['low'].min()
 
     # Window length for moving average
     window_length = 14
@@ -96,11 +116,25 @@ def create_graph(candles_data,symbol):
     dec = candles_df.open > candles_df.close
     candle_width = 30*60*1000 # half an hour in ms
 
-    tools = "pan,wheel_zoom,box_zoom,reset,save"
+    x_min = candles_df['date'].min() - timedelta(hours=1)
+    x_max = candles_df['date'].max() + timedelta(hours=1)
+    x_text = candles_df['date'].min()
+    candles_graph = figure(
+        x_axis_type="datetime",
+        toolbar_location=None,
+        x_range=(x_min, x_max),
+        plot_width=1000,
+        title=symbol)
+    candles_graph.title.text_font_size = "25pt"
+    candles_graph.yaxis.major_label_text_font_size = "15pt"
+    candles_graph.yaxis[0].ticker.desired_num_ticks = 20
 
-    candles_graph = figure(x_axis_type="datetime", tools=tools, plot_width=1000, title=symbol.upper())
-    candles_graph.xaxis.major_label_orientation = pi/4
+    candles_graph.xaxis.major_label_text_font_size = "12pt"
+    candles_graph.xaxis[0].ticker.desired_num_ticks = 30
+    candles_graph.xaxis.major_label_orientation = pi/2
     candles_graph.grid.grid_line_alpha = 0.3
+
+
     candles_graph.segment(
         candles_df.date,
         candles_df.high,
@@ -114,7 +148,7 @@ def create_graph(candles_data,symbol):
         candle_width,
         candles_df.open[inc],
         candles_df.close[inc],
-        fill_color="#31d8a1",
+        fill_color=up_color,
         line_color="black"
     )
     candles_graph.vbar(
@@ -122,11 +156,105 @@ def create_graph(candles_data,symbol):
         candle_width,
         candles_df.open[dec],
         candles_df.close[dec],
-        fill_color="#F2583E",
+        fill_color=down_color,
         line_color="black"
     )
 
-    rsi_graph = figure(plot_width=1000, plot_height=100, y_range=(0, 100))
+    sells = []
+    buys = []
+    max_price = float(candles_df['high'].max())
+    min_price = float(candles_df['low'].min())
+    for order in active_orders:
+        price = float(order['price'])
+        if price > max_price  or price < min_price:
+            continue
+        line = [price]*candles_df.shape[0]
+        if order['side'] == 'sell':
+            sign = "-"
+            sells.append(line)
+            candles_graph.rect(
+                x=x_text+timedelta(hours=3),
+                y=price+0.002,
+                width=timedelta(hours=7),
+                height=0.005,
+                fill_color="white"
+            )
+        else:
+            buys.append(line)
+            sign = "+"
+            candles_graph.rect(
+                x=x_text+timedelta(hours=3),
+                y=price+0.002,
+                width=timedelta(hours=7),
+                height=0.005,
+                fill_color="white"
+            )
+        candles_graph.text(
+            x=x_text,
+            y=price,
+            text=[f"{sign}{order['remaining_amount']}"],
+            text_font_size='8pt',
+            text_font_style='bold'
+        )
+
+    #### add current price
+    current_price = float(candles_df['close'][0])
+    new_line = [current_price]*candles_df.shape[0]
+    if candles_df['open'][0] > candles_df['close'][0]:
+        sells.append(new_line)
+        candles_graph.rect(
+            x=x_text+timedelta(hours=3),
+            y=current_price+0.002,
+            width=timedelta(hours=7),
+            height=0.005,
+            fill_color="white"
+        )
+    else:
+        buys.append(new_line)
+        candles_graph.rect(
+            x=x_text+timedelta(hours=3),
+            y=current_price+0.002,
+            width=timedelta(hours=7),
+            height=0.005,
+            fill_color="white"
+        )
+
+    candles_graph.text(
+        x=x_text,
+        y=current_price,
+        text=[f"{current_price}"],
+        text_font_size='8pt',
+        text_font_style='bold'
+    )
+
+    #add sell lines
+    candles_graph.multi_line(
+        xs=[candles_df.seq]*len(sells),
+        ys=sells,
+        line_color=sell_order_color,
+        line_dash="dashed",
+        line_width=1
+    )
+
+    #add buy lines
+    candles_graph.multi_line(
+        xs=[candles_df.seq]*len(buys),
+        ys=buys,
+        line_color=buy_order_color,
+        line_width=1
+    )
+
+
+    ########### RSI GRAPH
+
+    rsi_graph = figure(
+        plot_width=1000,
+        plot_height=100,
+        x_range=(x_min, x_max),
+        toolbar_location=None,
+        y_range=(0, 100),
+        title="Relative Strength Index"
+    )
     rsi_graph.xaxis.visible = False
     rsi_graph.multi_line(
         xs=[candles_df.seq]*4,
@@ -139,8 +267,65 @@ def create_graph(candles_data,symbol):
         line_color=['red', 'black', 'gray', 'black'],
         line_width=1
     )
+    rsi_graph.yaxis.major_label_text_font_size = "11pt"
 
-    export_png(column(candles_graph, rsi_graph), filename="graph.png")
+
+    ########### Historic Volume GRAPH
+    volume_max = int(candles_df['volume'].max())
+    volume_graph = figure(
+        plot_width=1000,
+        plot_height=100,
+        x_range=(x_min, x_max),
+        toolbar_location=None,
+        y_range=(0, volume_max),
+        title="Volume"
+    )
+    volume_graph.xaxis.visible = False
+    volume_graph.left[0].formatter.use_scientific = False
+
+    volume_graph.vbar(
+        candles_df.date,
+        candle_width,
+        candles_df.volume*0,
+        candles_df.volume,
+        fill_color="blue",
+        line_color="black"
+    )
+
+
+    ########### Volume in active orders GRAPH
+    orderbook_df = pd.DataFrame.from_dict(orders_data, orient='columns')
+
+    orders_vol_graph = figure(
+        plot_width=200,
+        toolbar_location=None,
+        y_range=orderbook_df.price,
+        title="Orderbook"
+    )
+    orders_vol_graph.below[0].formatter.use_scientific = False
+    #orders_vol_grap.left[0].formatter.use_scientific = False
+    orders_vol_graph.yaxis.visible = False
+    orders_vol_graph.xaxis.major_label_text_font_size = "8pt"
+    orders_vol_graph.xaxis[0].ticker.desired_num_ticks = 5
+    orders_vol_graph.xaxis.major_label_orientation = pi/2
+
+    orders_vol_graph.hbar(
+        y=orderbook_df.price,
+        left=orderbook_df.amount*0,
+        right=orderbook_df.amount,
+        height=0.1
+    )
+
+    graphs_layout = layout(
+        children=[
+            [candles_graph, orders_vol_graph],
+            [volume_graph],
+            [rsi_graph]
+        ]
+    )
+
+    ############ export the graph
+    export_png(graphs_layout, filename="graph.png")
 
 REST_TYPES = {
     "mmarket" : "market",
@@ -166,6 +351,7 @@ class Btfxbot:
         self.btfx_client2 = Client2(btfx_key, btfx_secret)
         self.btfx_symbols = self.btfx_client.symbols()
 
+
         updater = Updater(telegram_token)
         # Get the dispatcher to register handlers
         qdp = updater.dispatcher
@@ -174,19 +360,10 @@ class Btfxbot:
         qdp.add_handler(CommandHandler("start", self.cb_start))
         qdp.add_handler(CommandHandler("graph", self.cb_graph, pass_args=True))
         qdp.add_handler(CommandHandler("auth", self.cb_auth, pass_args=True))
+        qdp.add_handler(CommandHandler("option", self.cb_option, pass_args=True))
+        qdp.add_handler(CommandHandler("neworder", self.cb_new_order, pass_args=True))
+        qdp.add_handler(CommandHandler("orders", self.cb_orders, pass_args=True))
 
-
-        # Add conversation handler with the states GENDER, PHOTO, LOCATION and BIO
-
-        #conv_handler = ConversationHandler(
-        #    entry_points=[CommandHandler("neworder", self.cb_new_order, pass_args=True)],
-        #    states={
-        #        REPLY_NEW_ORDER: [CallbackQueryHandler(self.new_order_reply, pass_user_data=True)],
-        #        UPDATE_NEW_ORDER: [MessageHandler(Filters.text, self.update_new_order,
-        #                                          pass_user_data=True)]
-        #    },
-        #    fallbacks=[CommandHandler('cancel', cancel)]
-        #)
         qdp.add_handler(
             CallbackQueryHandler(
                 self.cb_btn_cancel_order,
@@ -199,8 +376,6 @@ class Btfxbot:
                 pattern=r'^orders:\w+$')
             )
 
-        qdp.add_handler(CommandHandler("neworder", self.cb_new_order, pass_args=True))
-        qdp.add_handler(CommandHandler("orders", self.cb_orders, pass_args=True))
 
         # log all errors
         qdp.add_error_handler(self.cb_error)
@@ -258,7 +433,11 @@ class Btfxbot:
             bot.send_message(chat_id, text=message, parse_mode='HTML')
             return
 
-        symbol = args[0] if args else "iotusd"
+        if 'defaultpair' in self.userdata[chat_id]:
+            defaultpair = self.userdata[chat_id]['defaultpair']
+        else:
+            defaultpair = "iotusd"
+        symbol = args[0] if args else defaultpair
 
         if symbol not in self.btfx_symbols:
             msgtext = f"incorect symbol , available pairs are {self.btfx_symbols}"
@@ -269,8 +448,79 @@ class Btfxbot:
 
         chat_id = update.message.chat.id
         candles_data = self.btfx_client2.candles("1h", tradepair, "hist", limit='120')
-        create_graph(candles_data,symbol)
+        active_orders = self.btfx_client.active_orders()
+        order_book = self.btfx_client.order_book(
+            "iotusd",
+            parameters={"limit_bids":800, "limit_asks":800}
+        )
+
+        if 'graphtheme' in self.userdata[chat_id]:
+            graphtheme = self.userdata[chat_id]['graphtheme']
+        else:
+            graphtheme = "normal"
+
+        orders_data = order_book['asks'] + order_book['bids']
+        create_graph(candles_data, active_orders, orders_data, symbol, graphtheme=graphtheme)
         bot.send_photo(chat_id=chat_id, photo=open('graph.png', 'rb'))
+
+    def cb_option(self, bot, update, args):
+        LOGGER.info(f"{update.message.chat.username} : /option {args}")
+        chat_id = update.message.chat.id
+
+        if chat_id not in self.userdata:
+            LOGGER.info("chat id not found in list of chats")
+            message = "<pre>You'll Clean That Up Before You Leave</pre>"
+            bot.send_message(chat_id, text=message, parse_mode='HTML')
+            return
+        authenticated = self.userdata[chat_id]['authenticated']
+        if authenticated == "no":
+            LOGGER.info("user id not authenticated")
+            message = "<pre>You'll Clean That Up Before You Leave</pre>"
+            bot.send_message(chat_id, text=message, parse_mode='HTML')
+            return
+
+        if len(args) < 2:
+            lines = []
+            lines.append("<pre>")
+            lines.append("missing parameters\n")
+            lines.append("/option defaultpair symbol\n")
+            lines.append("  symbols : iotusd, btcusd, ltcusd, ethusd\n")
+            lines.append("/option graphtheme theme\n")
+            lines.append("  themes : standard, colorblind, monochrome\n")
+            lines.append("</pre>")
+            composed_message = ''.join(lines)
+            bot.send_message(chat_id, text=composed_message, parse_mode='HTML')
+            return
+
+        optname = args[0]
+        optvalue = args[1]
+        if optname not in ['defaultpair', 'graphtheme']:
+            lines = []
+            lines.append("<pre>")
+            lines.append(f"{optname} is not a valid option\n")
+            lines.append("valid options are defaultpair and graphtheme\n")
+            lines.append("</pre>")
+            composed_message = ''.join(lines)
+            bot.send_message(chat_id, text=composed_message, parse_mode='HTML')
+            return
+
+        if optname == "defaultpair" and optvalue not in self.btfx_symbols:
+            msgtext = f"incorect symbol , available pairs are {self.btfx_symbols}"
+            bot.send_message(chat_id, text=msgtext, parse_mode='HTML')
+            return
+
+        if optname == "graphtheme" and optvalue not in ['standard', 'colorblind', 'monochrome']:
+            msgtext = f"incorect theme , available themes are standard, colorblind, monochrome"
+            bot.send_message(chat_id, text=msgtext, parse_mode='HTML')
+            return
+
+        self.userdata[chat_id][optname] = optvalue
+        self.save_userdata()
+
+        message = f'<pre>option {optname} was set to {optvalue}</pre>'
+        bot.send_message(chat_id, text=message, parse_mode='HTML')
+
+
 
     def cb_auth(self, bot, update, args):
         chat_id = update.message.chat.id
