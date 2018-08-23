@@ -1,2 +1,8 @@
-pytest>=3.0.7
+pandas
 python-telegram-bot
+wheel
+pillow
+selenium
+bokeh
+python-telegram-bot
+bitfinex-v2

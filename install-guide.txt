@@ -1,0 +1,52 @@
+#these instrunctions are for Ubuntu 18
+
+#tools needed :
+sudo apt install npm
+sudo apt install git
+sudo apt install tmux
+
+
+##### create a new environment
+mkdir btenv
+cd btenv
+python3 -m venv env
+
+#start tmux session so it continues running after you log out
+tmux new -t btfxgram
+source env/bin/activate
+
+##### download the source code
+git clone https://github.com/dantimofte/bitfinex-telegram.git
+
+
+#### install requirments
+pip3 install pandas
+
+
+####bokeh dependencies and finaly bokeh
+pip3 install wheel
+pip3 install pillow
+pip3 install selenium
+sudo npm install -g phantomjs-prebuilt
+sudo apt-get install libfontconfig
+pip3 install bokeh
+
+pip3 install python-telegram-bot --upgrade
+pip3 install bitfinex-v2
+
+echo "export TELEGRAM_TOKEN=dsfdsfds
+export BFX_TELEGRAM_KEY=sdfdsgfsd
+export BFX_TELEGRAM_SECRET=dsfdsfgdsfsd
+export AUTH_PASS=somepass
+" > .env
+
+. .env
+
+./main.py
+ctrl+b d   #detach from tmux window
+
+
+#close  everything :
+ctrl+c      #stop  bot
+deactivate  #exit virtual env
+exit        #close tmux 
