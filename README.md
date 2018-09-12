@@ -14,9 +14,11 @@ Control your bitfinex account using a telegram bot
 	neworder - /neworder ±volume price tradepair tradetype
 	graph - /graph symbol (symbol is optional, default is iotusd)
 	option - /option option_name value 
+	calc - /calc 
 
 ## 
 	available option names and values are : 
 
 	defaultpair symbol (ex: iotbtc, ethusd, btcusd, ...)
 	graphtheme theme (standard, colorblind, monochrome)
+	calculation type (types : position_SYMBOL, margin_sym_SYMBOL)

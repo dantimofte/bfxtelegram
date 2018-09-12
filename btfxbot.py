@@ -10,7 +10,6 @@ __license__ = "MIT"
 
 import logging
 import threading
-from time import sleep
 ##### telegram libraries
 from telegram.ext import Updater
 from telegram.ext import CallbackQueryHandler, CommandHandler
@@ -55,13 +54,11 @@ class Btfxbot:
         self.btfx_symbols = self.btfx_client.symbols()
 
         self.btfxwss = WssClient(key=btfx_key, secret=btfx_secret)
+        # Tracks Websocket Connection
+        self.connection_timer = None
+        self.connection_timeout = 15
         self.btfxwss.authenticate(self.cb_wss_auth)
-
-        self.mywss_thread = threading.Thread(target=self.btfxwss.run, args=())
-        self.mywss_thread.daemon = True
-        self.mywss_thread.start()
-        sleep(2)
-
+        self.btfxwss.start()
 
         updater = Updater(telegram_token)
         self.tbot = updater.bot
@@ -75,6 +72,7 @@ class Btfxbot:
         qdp.add_handler(CommandHandler("option", self.cb_option, pass_args=True))
         qdp.add_handler(CommandHandler("neworder", self.cb_new_order, pass_args=True))
         qdp.add_handler(CommandHandler("orders", self.cb_orders, pass_args=True))
+        qdp.add_handler(CommandHandler("calc", self.cb_wss_calc, pass_args=True))
 
         qdp.add_handler(CallbackQueryHandler(
             self.cb_btn_cancel_order,
@@ -167,27 +165,32 @@ class Btfxbot:
             return
 
         if len(args) < 2:
-            lines = []
-            lines.append("<pre>")
-            lines.append("missing parameters\n")
-            lines.append("/option defaultpair symbol\n")
-            lines.append("  symbols : iotusd, btcusd, ltcusd, ethusd\n")
-            lines.append("/option graphtheme theme\n")
-            lines.append("  themes : standard, colorblind, monochrome\n")
-            lines.append("</pre>")
-            composed_message = ''.join(lines)
+            composed_message = (
+                "<pre>"
+                "missing parameters\n"
+                "/option defaultpair symbol\n"
+                "  symbols : iotusd, btcusd, ltcusd, ethusd\n"
+                "/option graphtheme theme\n"
+                "  themes : standard, colorblind, monochrome\n"
+                "/option calctype type\n"
+                "  ex : /option calctype position_tIOTUSD\n"
+                "</pre>"
+            )
+
             bot.send_message(chat_id, text=composed_message, parse_mode='HTML')
             return
 
         optname = args[0]
         optvalue = args[1]
-        if optname not in ['defaultpair', 'graphtheme']:
-            lines = []
-            lines.append("<pre>")
-            lines.append(f"{optname} is not a valid option\n")
-            lines.append("valid options are defaultpair and graphtheme\n")
-            lines.append("</pre>")
-            composed_message = ''.join(lines)
+        valid_options = ['defaultpair', 'graphtheme', 'calctype']
+        if optname not in valid_options:
+            str_options = " ".join(valid_options)
+            composed_message = (
+                "<pre>"
+                f"{optname} is not a valid option\n"
+                f"valid options are {str_options}\n"
+                "</pre>"
+            )
             bot.send_message(chat_id, text=composed_message, parse_mode='HTML')
             return
 
@@ -201,13 +204,12 @@ class Btfxbot:
             bot.send_message(chat_id, text=msgtext, parse_mode='HTML')
             return
 
+
         self.userdata[chat_id][optname] = optvalue
         bgu_save_userdata(self.userdata)
 
         message = f'<pre>option {optname} was set to {optvalue}</pre>'
         bot.send_message(chat_id, text=message, parse_mode='HTML')
-
-
 
     def cb_auth(self, bot, update, args):
         chat_id = update.message.chat.id
@@ -246,14 +248,11 @@ class Btfxbot:
         self.userdata[chat_id] = userinfo
         bgu_save_userdata(self.userdata)
 
-
     def cb_error(self, bot, update, boterror):
         """Log Errors caused by Updates."""
         LOGGER.warning(f'Update "{update}" caused error "{boterror}"')
 
-
-
-    #Bitfinex requests
+    #Bitfinex Rest Methods
     def cb_new_order(self, bot, update, args):
         LOGGER.info(f"{update.message.chat.username} : /neworder {args}")
         chat_id = update.message.chat.id
@@ -335,6 +334,45 @@ class Btfxbot:
             LOGGER.info(f"coult not send message keyboard to {chat_id}")
             LOGGER.info(error)
 
+
+    def cb_wss_calc(self, bot, update, args):
+        LOGGER.info(f"{update.message.chat.username} : /calc {args}")
+        chat_id = update.message.chat.id
+
+        if chat_id not in self.userdata:
+            LOGGER.info("chat id not found in list of chats")
+            message = "<pre>You'll Clean That Up Before You Leave</pre>"
+            bot.send_message(chat_id, text=message, parse_mode='HTML')
+            return
+        authenticated = self.userdata[chat_id]['authenticated']
+        if authenticated == "no":
+            LOGGER.info("user id not authenticated")
+            message = "<pre>You'll Clean That Up Before You Leave</pre>"
+            bot.send_message(chat_id, text=message, parse_mode='HTML')
+            return
+
+
+        if len(args) < 1 and 'calctype' not in self.userdata[chat_id]:
+            infomsg = ("<pre>"
+                       "Calculation type is missing : /calc type\n"
+                       "Possible prefixes:\n"
+                       "    margin_sym_SYMBOL\n"
+                       "    funding_sym_SYMBOL\n"
+                       "    position_SYMBOL\n"
+                       "    wallet_WALLET-TYPE_CURRENCY\n"
+                       "Or specify a default calculation using /option"
+                       "</pre>"
+                      )
+            bot.send_message(update.message.chat.id, text=infomsg, parse_mode='HTML')
+            return
+
+        if 'calctype' in self.userdata[chat_id]:
+            default_type = self.userdata[chat_id]['calctype']
+            calctype = args[0] if args else default_type
+
+        self.btfxwss.calc([calctype])
+
+
     #Bitfinex requests
     def cb_orders(self, bot, update, args):
         LOGGER.info(f"{update.message.chat.username} : /neworder {args}")
@@ -405,6 +443,34 @@ class Btfxbot:
         LOGGER.info(f"del_order : {del_order}")
 
 
+    ######################### Bitfinex Websocket Methods #########################
+    def _stop_timers(self):
+        """Stops connection timers."""
+        if self.connection_timer:
+            self.connection_timer.cancel()
+        LOGGER.info("_stop_timers(): Timers stopped.")
+
+    def _start_timers(self):
+        """Resets and starts timers for API data and connection."""
+        LOGGER.info("_start_timers(): Resetting timers..")
+        self._stop_timers()
+        # Automatically reconnect if we didnt receive data
+        self.connection_timer = threading.Timer(self.connection_timeout, self._connection_timed_out)
+        self.connection_timer.start()
+
+
+    def _connection_timed_out(self):
+        """Issues a reconnection if the connection timed out.
+        :return:
+        """
+        LOGGER.info("_connection_timed_out(): Fired! Issuing reconnect..")
+        self.btfxwss.close()
+        self.btfxwss.authenticate(self.cb_wss_auth)
+
+    def _cb_heartbeat_handler(self, *args):
+        self._start_timers()
+
+
     def cb_wss_auth(self, message, *args, **kwargs):
         if not isinstance(message, list):
             LOGGER.info(message)
@@ -412,14 +478,15 @@ class Btfxbot:
 
         types = {
             'on' : self.on_notification,
-            'oc' : self.oc_notification
+            'oc' : self.oc_notification,
+            'hb' : self._cb_heartbeat_handler,
+            'pu' : self.pu_notification
         }
         LOGGER.info(message)
         LOGGER.info(f"msg type is : {message[1]}")
         msg_type = message[1]
         if msg_type in types.keys():
             types[msg_type](message)
-
 
 
     def on_notification(self, message):
@@ -468,3 +535,36 @@ class Btfxbot:
                     self.tbot.send_message(key, text=composed_message, parse_mode='HTML')
                 except (TimedOut, TelegramError):
                     LOGGER.error(f"coult not send message to {key}")
+
+    def pu_notification(self, message):
+        if not any(message[2]):
+            LOGGER.error("discarding this position update message")
+            return
+        xpair = message[2][0]
+        xamount = message[2][2]
+        xbaseprice = message[2][3]
+        xfundingcost = message[2][4]
+        xprofitloss = message[2][6]
+        xpl_percent = message[2][7]
+        xliquidation = message[2][8]
+        xleverage = message[2][9]
+
+        formated_message = ("<pre>"
+                            f"Pair         : {xpair}\n"
+                            f"Amount       : {xamount}\n"
+                            f"Base Price   : {xbaseprice}\n"
+                            f"Funding Cost : {xfundingcost}\n"
+                            f"Profit/Loss  : {xprofitloss} {xpl_percent}%\n"
+                            f"Liquidation  : {xliquidation}\n"
+                            f"Leverage     : {xleverage} "
+                            "</pre>"
+                           )
+        LOGGER.info(formated_message)
+        #send message to everyone who is authenticated
+        for key, value in self.userdata.items():
+            if value['authenticated'] == "yes":
+                try:
+                    self.tbot.send_message(key, text=formated_message, parse_mode='HTML')
+                except (TimedOut, TelegramError):
+                    LOGGER.error(f"coult not send message to {key}")
+#########################  Websocket Functions #########################
