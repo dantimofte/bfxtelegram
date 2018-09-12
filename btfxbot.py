@@ -43,6 +43,23 @@ REST_TYPES = {
 }
 
 
+def ensure_authorized(passed_function):
+    def wrapper(self, bot, update, *args, **kwargs):
+        chat_id = update.message.chat.id
+        if chat_id not in self.userdata:
+            LOGGER.info("chat id not found in list of chats")
+            message = "<pre>Please authenticate</pre>"
+            bot.send_message(chat_id, text=message, parse_mode='HTML')
+            return
+        authenticated = self.userdata[chat_id]['authenticated']
+        if authenticated == "no":
+            LOGGER.info("user id not authenticated")
+            message = "<pre>Please authenticate</pre>"
+            bot.send_message(chat_id, text=message, parse_mode='HTML')
+            return
+        return passed_function(self, bot, update, *args, **kwargs)
+    return wrapper
+
 class Btfxbot:
     def __init__(self, telegram_token, auth_pass, btfx_key, btfx_secret):
         LOGGER.info("Here be dragons")
@@ -101,22 +118,10 @@ class Btfxbot:
     def cb_start(self, bot, update):
         update.message.reply_text('Here be Dragons')
 
-
+    @ensure_authorized
     def cb_graph(self, bot, update, args):
         LOGGER.info(f"{update.message.chat.username} : /graph {args}")
         chat_id = update.message.chat.id
-
-        if chat_id not in self.userdata:
-            LOGGER.info("chat id not found in list of chats")
-            message = "<pre>You'll Clean That Up Before You Leave</pre>"
-            bot.send_message(chat_id, text=message, parse_mode='HTML')
-            return
-        authenticated = self.userdata[chat_id]['authenticated']
-        if authenticated == "no":
-            LOGGER.info("user id not authenticated")
-            message = "<pre>You'll Clean That Up Before You Leave</pre>"
-            bot.send_message(chat_id, text=message, parse_mode='HTML')
-            return
 
         if 'defaultpair' in self.userdata[chat_id]:
             defaultpair = self.userdata[chat_id]['defaultpair']
@@ -148,24 +153,13 @@ class Btfxbot:
         bgu_create_graph(candles_data, active_orders, orders_data, symbol, graphtheme=graphtheme)
         bot.send_photo(chat_id=chat_id, photo=open('graph.png', 'rb'))
 
+    @ensure_authorized
     def cb_option(self, bot, update, args):
         LOGGER.info(f"{update.message.chat.username} : /option {args}")
         chat_id = update.message.chat.id
 
-        if chat_id not in self.userdata:
-            LOGGER.info("chat id not found in list of chats")
-            message = "<pre>You'll Clean That Up Before You Leave</pre>"
-            bot.send_message(chat_id, text=message, parse_mode='HTML')
-            return
-        authenticated = self.userdata[chat_id]['authenticated']
-        if authenticated == "no":
-            LOGGER.info("user id not authenticated")
-            message = "<pre>You'll Clean That Up Before You Leave</pre>"
-            bot.send_message(chat_id, text=message, parse_mode='HTML')
-            return
-
         if len(args) < 2:
-            composed_message = (
+            formated_message = (
                 "<pre>"
                 "missing parameters\n"
                 "/option defaultpair symbol\n"
@@ -177,7 +171,7 @@ class Btfxbot:
                 "</pre>"
             )
 
-            bot.send_message(chat_id, text=composed_message, parse_mode='HTML')
+            bot.send_message(chat_id, text=formated_message, parse_mode='HTML')
             return
 
         optname = args[0]
@@ -185,13 +179,13 @@ class Btfxbot:
         valid_options = ['defaultpair', 'graphtheme', 'calctype']
         if optname not in valid_options:
             str_options = " ".join(valid_options)
-            composed_message = (
+            formated_message = (
                 "<pre>"
                 f"{optname} is not a valid option\n"
                 f"valid options are {str_options}\n"
                 "</pre>"
             )
-            bot.send_message(chat_id, text=composed_message, parse_mode='HTML')
+            bot.send_message(chat_id, text=formated_message, parse_mode='HTML')
             return
 
         if optname == "defaultpair" and optvalue not in self.btfx_symbols:
@@ -253,32 +247,21 @@ class Btfxbot:
         LOGGER.warning(f'Update "{update}" caused error "{boterror}"')
 
     #Bitfinex Rest Methods
+    @ensure_authorized
     def cb_new_order(self, bot, update, args):
         LOGGER.info(f"{update.message.chat.username} : /neworder {args}")
         chat_id = update.message.chat.id
 
-        if chat_id not in self.userdata:
-            LOGGER.info("chat id not found in list of chats")
-            message = "<pre>You'll Clean That Up Before You Leave</pre>"
-            bot.send_message(chat_id, text=message, parse_mode='HTML')
-            return
-        authenticated = self.userdata[chat_id]['authenticated']
-        if authenticated == "no":
-            LOGGER.info("user id not authenticated")
-            message = "<pre>You'll Clean That Up Before You Leave</pre>"
-            bot.send_message(chat_id, text=message, parse_mode='HTML')
-            return
-
         ###### Verify order parameters
         if len(args) < 4:
-            lines = []
-            lines.append("<pre>")
-            lines.append("missing parameters\n")
-            lines.append("/neworder ±volume price tradepair tradetype\n")
-            lines.append("/neworder -100 4.00 iotusd elimit")
-            lines.append("</pre>")
-            composed_message = ''.join(lines)
-            bot.send_message(chat_id, text=composed_message, parse_mode='HTML')
+            formated_message = (
+                "<pre>"
+                "missing parameters\n"
+                "/neworder ±volume price tradepair tradetype\n"
+                "/neworder -100 4.00 iotusd elimit"
+                "</pre>"
+            )
+            bot.send_message(chat_id, text=formated_message, parse_mode='HTML')
             return
 
         volume = args[0]
@@ -316,11 +299,6 @@ class Btfxbot:
             symbol=tradepair
         )
         orderid = neworder['id']
-        lines = []
-
-        lines.append(f"Order {orderid} placed succesfully\n")
-        composed_message = ''.join(lines)
-
         buttons = [
             #InlineKeyboardButton('Update Price', callback_data=f"neworder:updprice:{orderid}"),
             #InlineKeyboardButton('Update Volume', callback_data=f"neworder:updvolume:{orderid}"),
@@ -328,29 +306,18 @@ class Btfxbot:
         ]
         keyboard = InlineKeyboardMarkup([buttons])
 
+        formated_message = f"Order {orderid} placed succesfully\n"
+
         try:
-            update.message.reply_text(composed_message, reply_markup=keyboard)
+            update.message.reply_text(formated_message, reply_markup=keyboard)
         except(TimedOut, TelegramError) as error:
             LOGGER.info(f"coult not send message keyboard to {chat_id}")
             LOGGER.info(error)
 
-
+    @ensure_authorized
     def cb_wss_calc(self, bot, update, args):
         LOGGER.info(f"{update.message.chat.username} : /calc {args}")
         chat_id = update.message.chat.id
-
-        if chat_id not in self.userdata:
-            LOGGER.info("chat id not found in list of chats")
-            message = "<pre>You'll Clean That Up Before You Leave</pre>"
-            bot.send_message(chat_id, text=message, parse_mode='HTML')
-            return
-        authenticated = self.userdata[chat_id]['authenticated']
-        if authenticated == "no":
-            LOGGER.info("user id not authenticated")
-            message = "<pre>You'll Clean That Up Before You Leave</pre>"
-            bot.send_message(chat_id, text=message, parse_mode='HTML')
-            return
-
 
         if len(args) < 1 and 'calctype' not in self.userdata[chat_id]:
             infomsg = ("<pre>"
@@ -374,21 +341,10 @@ class Btfxbot:
 
 
     #Bitfinex requests
+    @ensure_authorized
     def cb_orders(self, bot, update, args):
-        LOGGER.info(f"{update.message.chat.username} : /neworder {args}")
+        LOGGER.info(f"{update.message.chat.username} : /orders {args}")
         chat_id = update.message.chat.id
-
-        if chat_id not in self.userdata:
-            LOGGER.info("chat id not found in list of chats")
-            message = "<pre>You'll Clean That Up Before You Leave</pre>"
-            bot.send_message(chat_id, text=message, parse_mode='HTML')
-            return 1
-        authenticated = self.userdata[chat_id]['authenticated']
-        if authenticated == "no":
-            LOGGER.info("user id not authenticated")
-            message = "<pre>You'll Clean That Up Before You Leave</pre>"
-            bot.send_message(chat_id, text=message, parse_mode='HTML')
-            return 1
 
         buttons = [
             InlineKeyboardButton('Margin', callback_data="orders:margin"),
@@ -419,15 +375,13 @@ class Btfxbot:
             side = order['side']
             original_amount = order['original_amount']
             price = order['price']
-            lines = []
-            lines.append(f"{order_id}: {symbol} {side} {original_amount}@{price}")
-            composed_message = ''.join(lines)
+            formated_message = f"{order_id}: {symbol} {side} {original_amount}@{price}"
             buttons = [InlineKeyboardButton('cancel', callback_data=f'cancel_order:{order_id}')]
             keyboard = InlineKeyboardMarkup([buttons])
             try:
-                bot.send_message(chat_id, text=composed_message, reply_markup=keyboard)
+                bot.send_message(chat_id, text=formated_message, reply_markup=keyboard)
             except (TimedOut, TelegramError) as error:
-                print(f"could not send message {composed_message} to {chat_id}")
+                print(f"could not send message {formated_message} to {chat_id}")
                 print(error)
 
     def cb_btn_cancel_order(self, bot, update):
@@ -496,21 +450,15 @@ class Btfxbot:
         order_type = message[2][8]
         order_price = message[2][16]
         plus_sign = "+" if order_volume > 0 else ""
-        lines = []
-        lines.append("<pre>")
-        lines.append(f"Order {order_id} {order_symbol} {order_type} ")
-        lines.append(f"{plus_sign}{order_volume} @ {order_price} PLACED")
-        lines.append("</pre>")
-        composed_message = ''.join(lines)
-        LOGGER.info(composed_message)
 
+        formated_message = (
+            "<pre>"
+            f"Order {order_id} {order_symbol} {order_type} "
+            f"{plus_sign}{order_volume} @ {order_price} PLACED"
+            "</pre>"
+        )
         #send message to everyone who is authenticated
-        for key, value in self.userdata.items():
-            if value['authenticated'] == "yes":
-                try:
-                    self.tbot.send_message(key, text=composed_message, parse_mode='HTML')
-                except (TimedOut, TelegramError):
-                    LOGGER.error(f"coult not send message to {key}")
+        self.send_to_users(formated_message)
 
     def oc_notification(self, message):
         order_id = message[2][0]
@@ -520,51 +468,41 @@ class Btfxbot:
         order_status = message[2][13]
         order_price = message[2][16]
         plus_sign = "+" if order_volume > 0 else ""
-        lines = []
-        lines.append("<pre>")
-        lines.append(f"Order {order_id} {order_symbol} {order_type} ")
-        lines.append(f"{plus_sign}{order_volume} @ {order_price} was {order_status}")
-        lines.append("</pre>")
-        composed_message = ''.join(lines)
-        LOGGER.info(composed_message)
+
+        formated_message = (
+            "<pre>"
+            f"Order {order_id} {order_symbol} {order_type} "
+            f"{plus_sign}{order_volume} @ {order_price} was {order_status}"
+            "</pre>"
+        )
 
         #send message to everyone who is authenticated
-        for key, value in self.userdata.items():
-            if value['authenticated'] == "yes":
-                try:
-                    self.tbot.send_message(key, text=composed_message, parse_mode='HTML')
-                except (TimedOut, TelegramError):
-                    LOGGER.error(f"coult not send message to {key}")
+        self.send_to_users(formated_message)
+
 
     def pu_notification(self, message):
-        if not any(message[2]):
-            LOGGER.error("discarding this position update message")
+        if not all(message[2]):
             return
-        xpair = message[2][0]
-        xamount = message[2][2]
-        xbaseprice = message[2][3]
-        xfundingcost = message[2][4]
-        xprofitloss = message[2][6]
-        xpl_percent = message[2][7]
-        xliquidation = message[2][8]
-        xleverage = message[2][9]
 
-        formated_message = ("<pre>"
-                            f"Pair         : {xpair}\n"
-                            f"Amount       : {xamount}\n"
-                            f"Base Price   : {xbaseprice}\n"
-                            f"Funding Cost : {xfundingcost}\n"
-                            f"Profit/Loss  : {xprofitloss} {xpl_percent}%\n"
-                            f"Liquidation  : {xliquidation}\n"
-                            f"Leverage     : {xleverage} "
-                            "</pre>"
-                           )
-        LOGGER.info(formated_message)
+        formated_message = (
+            "<pre>"
+            f"Pair         : {message[2][0]}\n"
+            f"Amount       : {message[2][2]}\n"
+            f"Base Price   : {message[2][3]}\n"
+            f"Funding Cost : {message[2][4]}\n"
+            f"Profit/Loss  : {message[2][6]} {message[2][7]}%\n"
+            f"Liquidation  : {message[2][8]}\n"
+            f"Leverage     : {message[2][9]} "
+            "</pre>"
+        )
         #send message to everyone who is authenticated
+        self.send_to_users(formated_message)
+#########################  Websocket Functions #########################
+
+    def send_to_users(self, message):
         for key, value in self.userdata.items():
             if value['authenticated'] == "yes":
                 try:
-                    self.tbot.send_message(key, text=formated_message, parse_mode='HTML')
+                    self.tbot.send_message(key, text=message, parse_mode='HTML')
                 except (TimedOut, TelegramError):
                     LOGGER.error(f"coult not send message to {key}")
-#########################  Websocket Functions #########################
