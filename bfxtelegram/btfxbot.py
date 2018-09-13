@@ -20,8 +20,6 @@ from bitfinex import ClientV2 as Client2
 
 from bfxtelegram.bfxwss import Bfxwss
 from bfxtelegram import utils
-#from btfx_gram_utils import bgu_isnumber, bgu_read_userdata, bgu_save_userdata
-#from btfx_gram_utils import bgu_create_graph
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -36,21 +34,13 @@ class Btfxbot:
         self.auth_pass = auth_pass
         self.btfx_client = Client(btfx_key, btfx_secret)
         self.btfx_client2 = Client2(btfx_key, btfx_secret)
-
         self.btfx_symbols = self.btfx_client.symbols()
-        #self.btfxwss = WssClient(key=btfx_key, secret=btfx_secret)
-        # Tracks Websocket Connection
-        #self.connection_timer = None
-        #self.connection_timeout = 15
-        #self.btfxwss.authenticate(self.cb_wss_auth)
-        #self.btfxwss.start()
 
         updater = Updater(telegram_token)
         self.tbot = updater.bot
         self.btfxwss = Bfxwss(self.tbot, self.send_to_users, key=btfx_key, secret=btfx_secret)
         # Get the dispatcher to register handlers
         qdp = updater.dispatcher
-
         # on different commands - answer in Telegram
         qdp.add_handler(CommandHandler("start", self.cb_start))
         qdp.add_handler(CommandHandler("graph", self.cb_graph, pass_args=True))
@@ -58,18 +48,16 @@ class Btfxbot:
         qdp.add_handler(CommandHandler("option", self.cb_option, pass_args=True))
         qdp.add_handler(CommandHandler("neworder", self.cb_new_order, pass_args=True))
         qdp.add_handler(CommandHandler("orders", self.cb_orders, pass_args=True))
-        qdp.add_handler(CommandHandler("calc", self.cb_wss_calc, pass_args=True))
-
+        qdp.add_handler(CommandHandler("calc", self.cb_calc, pass_args=True))
+        qdp.add_handler(CommandHandler("help", self.cb_help, pass_args=True))
         qdp.add_handler(CallbackQueryHandler(
             self.cb_btn_cancel_order,
             pattern=r'^cancel_order:[0-9]+$'
         ))
-
         qdp.add_handler(CallbackQueryHandler(
             self.cb_btn_orders,
             pattern=r'^orders:\w+$'
         ))
-
 
         # log all errors
         qdp.add_error_handler(self.cb_error)
@@ -99,7 +87,8 @@ class Btfxbot:
         symbol = args[0] if args else defaultpair
 
         if symbol not in self.btfx_symbols:
-            msgtext = f"incorect symbol , available pairs are {self.btfx_symbols}"
+            symbols = " ".join(self.btfx_symbols)
+            msgtext = f"incorect symbol , available pairs are {symbols}"
             bot.send_message(chat_id, text=msgtext, parse_mode='HTML')
             return
 
@@ -128,19 +117,7 @@ class Btfxbot:
         chat_id = update.message.chat.id
 
         if len(args) < 2:
-            formated_message = (
-                "<pre>"
-                "missing parameters\n"
-                "/option defaultpair symbol\n"
-                "  symbols : iotusd, btcusd, ltcusd, ethusd\n"
-                "/option graphtheme theme\n"
-                "  themes : standard, colorblind, monochrome\n"
-                "/option calctype type\n"
-                "  ex : /option calctype position_tIOTUSD\n"
-                "</pre>"
-            )
-
-            bot.send_message(chat_id, text=formated_message, parse_mode='HTML')
+            utils.send_help(bot, chat_id, "option")
             return
 
         optname = args[0]
@@ -181,11 +158,7 @@ class Btfxbot:
         last_name = update.message.chat.last_name
         LOGGER.info(f"{chat_id} {username} : /neworder {args}")
         if len(args) < 1:
-            bot.send_message(
-                chat_id,
-                text='<pre>please run /auth password</pre>',
-                parse_mode='HTML'
-            )
+            utils.send_help(bot, chat_id, "auth")
             return
 
         botpass = args[0]
@@ -223,14 +196,7 @@ class Btfxbot:
 
         ###### Verify order parameters
         if len(args) < 4:
-            formated_message = (
-                "<pre>"
-                "missing parameters\n"
-                "/neworder ±volume price tradepair tradetype\n"
-                "/neworder -100 4.00 iotusd elimit"
-                "</pre>"
-            )
-            bot.send_message(chat_id, text=formated_message, parse_mode='HTML')
+            utils.send_help(bot, chat_id, "neworder")
             return
 
         volume = args[0]
@@ -239,13 +205,11 @@ class Btfxbot:
         tradetype = args[3]
 
         if  not utils.isnumber(volume):
-            msgtext = f"incorect volume , {volume} is not a number"
-            bot.send_message(chat_id, text=msgtext)
+            bot.send_message(chat_id, text=f"incorect volume , {volume} is not a number")
             return
 
         if  not utils.isnumber(price):
-            msgtext = f"incorect price , {price} is not a number"
-            bot.send_message(chat_id, text=msgtext)
+            bot.send_message(chat_id, text=f"incorect price , {price} is not a number")
             return
 
         if tradepair not in self.btfx_symbols:
@@ -254,7 +218,8 @@ class Btfxbot:
             return
 
         if tradetype not in utils.REST_TYPES:
-            msgtext = f"incorect tradetype , available types are : {utils.REST_TYPES}"
+            types = " ".join(utils.REST_TYPES)
+            msgtext = f"incorect tradetype , available types are : {types}"
             bot.send_message(chat_id, text=msgtext, parse_mode='HTML')
             return
 
@@ -284,32 +249,21 @@ class Btfxbot:
             LOGGER.info(error)
 
     @utils.ensure_authorized
-    def cb_wss_calc(self, bot, update, args):
+    def cb_calc(self, bot, update, args):
         LOGGER.info(f"{update.message.chat.username} : /calc {args}")
         chat_id = update.message.chat.id
 
         if len(args) < 1 and 'calctype' not in self.userdata[chat_id]:
-            infomsg = ("<pre>"
-                       "Calculation type is missing : /calc type\n"
-                       "Possible prefixes:\n"
-                       "    margin_sym_SYMBOL\n"
-                       "    funding_sym_SYMBOL\n"
-                       "    position_SYMBOL\n"
-                       "    wallet_WALLET-TYPE_CURRENCY\n"
-                       "Or specify a default calculation using /option"
-                       "</pre>"
-                      )
-            bot.send_message(update.message.chat.id, text=infomsg, parse_mode='HTML')
+            utils.send_help(bot, chat_id, "calc")
             return
 
         if 'calctype' in self.userdata[chat_id]:
             default_type = self.userdata[chat_id]['calctype']
-            calctype = args[0] if args else default_type
 
+        calctype = args[0] if args else default_type
         self.btfxwss.calc([calctype])
 
 
-    #Bitfinex requests
     @utils.ensure_authorized
     def cb_orders(self, bot, update, args):
         LOGGER.info(f"{update.message.chat.username} : /orders {args}")
@@ -327,6 +281,12 @@ class Btfxbot:
             print(f"coult not send message keyboard to {chat_id}")
             print(error)
 
+    @utils.ensure_authorized
+    def cb_help(self, bot, update, args):
+        LOGGER.info(f"{update.message.chat.username} : /help {args}")
+        chat_id = update.message.chat.id
+        help_key = args[0] if args else "none"
+        utils.send_help(bot, chat_id, help_key)
 
     def cb_btn_orders(self, bot, update):
         query = update.callback_query

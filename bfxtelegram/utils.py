@@ -35,6 +35,52 @@ REST_TYPES = {
     "efok"    : "exchange fill-or-kill"
 }
 
+CMDHELP = {
+    "option" : (
+        "<pre>"
+        "/option defaultpair symbol\n"
+        "  symbols : iotusd, btcusd, ltcusd, ethusd\n"
+        "/option graphtheme theme\n"
+        "  themes : standard, colorblind, monochrome\n"
+        "/option calctype type\n"
+        "  ex : /option calctype position_tIOTUSD\n"
+        "</pre>"
+    ),
+    "auth" : (
+        "<pre>"
+        "please run /auth password\n"
+        "AUTH_PASS set in the .env file"
+        "</pre>"
+    ),
+    "neworder" : (
+        "<pre>"
+        "New order is placed like this : \n"
+        "/neworder ±volume price tradepair tradetype\n"
+        "/neworder -100 4.00 iotusd elimit"
+        "</pre>"
+    ),
+    "calc" : (
+        "<pre>"
+        "Calculations are requested with the command : /calc type\n"
+        "Possible prefixes:\n"
+        "    margin_sym_SYMBOL\n"
+        "    funding_sym_SYMBOL\n"
+        "    position_SYMBOL\n"
+        "    wallet_WALLET-TYPE_CURRENCY\n"
+        "Or specify a default calculation using /option"
+        "</pre>"
+    )
+}
+
+
+def send_help(bot, chat_id, help_key):
+    helps = " ".join(CMDHELP.keys())
+    formated_message = f"<pre>help is available for : {helps}</pre>"
+    if help_key not in CMDHELP:
+        bot.send_message(chat_id, text=formated_message, parse_mode='HTML')
+        return
+    bot.send_message(chat_id, text=CMDHELP[help_key], parse_mode='HTML')
+
 def isnumber(pnumber):
     num_format = re.compile(r"^[\-]?[0-9]*\.?[0-9]*$")
     if re.match(num_format, pnumber):
