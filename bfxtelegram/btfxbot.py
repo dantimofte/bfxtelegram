@@ -9,7 +9,6 @@ __license__ = "MIT"
 
 
 import logging
-import threading
 ##### telegram libraries
 from telegram.ext import Updater
 from telegram.ext import CallbackQueryHandler, CommandHandler
@@ -18,10 +17,11 @@ from telegram.error import (TelegramError, TimedOut)
 ##### bitfinex libraries
 from bitfinex import ClientV1 as Client
 from bitfinex import ClientV2 as Client2
-from bitfinex import WssClient
 
-from btfx_gram_utils import bgu_isnumber, bgu_read_userdata, bgu_save_userdata
-from btfx_gram_utils import bgu_create_graph
+from bfxtelegram.bfxwss import Bfxwss
+from bfxtelegram import utils
+#from btfx_gram_utils import bgu_isnumber, bgu_read_userdata, bgu_save_userdata
+#from btfx_gram_utils import bgu_create_graph
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -29,56 +29,25 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 LOGGER = logging.getLogger(__name__)
 
 
-REST_TYPES = {
-    "mmarket" : "market",
-    "mlimit"  : "limit",
-    "mstop"   : "stop",
-    "mtrail"  : "trailing-stop",
-    "mfok"    : "fill-or-kill",
-    "emarket" : "exchange market",
-    "elimit"  : "exchange limit",
-    "estop"   : "exchange stop",
-    "etrail"  : "exchange trailing-stop",
-    "efok"    : "exchange fill-or-kill"
-}
-
-
-def ensure_authorized(passed_function):
-    def wrapper(self, bot, update, *args, **kwargs):
-        chat_id = update.message.chat.id
-        if chat_id not in self.userdata:
-            LOGGER.info("chat id not found in list of chats")
-            message = "<pre>Please authenticate</pre>"
-            bot.send_message(chat_id, text=message, parse_mode='HTML')
-            return
-        authenticated = self.userdata[chat_id]['authenticated']
-        if authenticated == "no":
-            LOGGER.info("user id not authenticated")
-            message = "<pre>Please authenticate</pre>"
-            bot.send_message(chat_id, text=message, parse_mode='HTML')
-            return
-        return passed_function(self, bot, update, *args, **kwargs)
-    return wrapper
-
 class Btfxbot:
     def __init__(self, telegram_token, auth_pass, btfx_key, btfx_secret):
         LOGGER.info("Here be dragons")
-        self.userdata = bgu_read_userdata()
+        self.userdata = utils.read_userdata()
         self.auth_pass = auth_pass
         self.btfx_client = Client(btfx_key, btfx_secret)
         self.btfx_client2 = Client2(btfx_key, btfx_secret)
 
         self.btfx_symbols = self.btfx_client.symbols()
-
-        self.btfxwss = WssClient(key=btfx_key, secret=btfx_secret)
+        #self.btfxwss = WssClient(key=btfx_key, secret=btfx_secret)
         # Tracks Websocket Connection
-        self.connection_timer = None
-        self.connection_timeout = 15
-        self.btfxwss.authenticate(self.cb_wss_auth)
-        self.btfxwss.start()
+        #self.connection_timer = None
+        #self.connection_timeout = 15
+        #self.btfxwss.authenticate(self.cb_wss_auth)
+        #self.btfxwss.start()
 
         updater = Updater(telegram_token)
         self.tbot = updater.bot
+        self.btfxwss = Bfxwss(self.tbot, self.send_to_users, key=btfx_key, secret=btfx_secret)
         # Get the dispatcher to register handlers
         qdp = updater.dispatcher
 
@@ -118,7 +87,7 @@ class Btfxbot:
     def cb_start(self, bot, update):
         update.message.reply_text('Here be Dragons')
 
-    @ensure_authorized
+    @utils.ensure_authorized
     def cb_graph(self, bot, update, args):
         LOGGER.info(f"{update.message.chat.username} : /graph {args}")
         chat_id = update.message.chat.id
@@ -150,10 +119,10 @@ class Btfxbot:
             graphtheme = "normal"
 
         orders_data = order_book['asks'] + order_book['bids']
-        bgu_create_graph(candles_data, active_orders, orders_data, symbol, graphtheme=graphtheme)
+        utils.create_graph(candles_data, active_orders, orders_data, symbol, graphtheme=graphtheme)
         bot.send_photo(chat_id=chat_id, photo=open('graph.png', 'rb'))
 
-    @ensure_authorized
+    @utils.ensure_authorized
     def cb_option(self, bot, update, args):
         LOGGER.info(f"{update.message.chat.username} : /option {args}")
         chat_id = update.message.chat.id
@@ -200,7 +169,7 @@ class Btfxbot:
 
 
         self.userdata[chat_id][optname] = optvalue
-        bgu_save_userdata(self.userdata)
+        utils.save_userdata(self.userdata)
 
         message = f'<pre>option {optname} was set to {optvalue}</pre>'
         bot.send_message(chat_id, text=message, parse_mode='HTML')
@@ -240,14 +209,14 @@ class Btfxbot:
             userinfo["telegram_name"] = f"{first_name} {last_name}"
 
         self.userdata[chat_id] = userinfo
-        bgu_save_userdata(self.userdata)
+        utils.save_userdata(self.userdata)
 
     def cb_error(self, bot, update, boterror):
         """Log Errors caused by Updates."""
         LOGGER.warning(f'Update "{update}" caused error "{boterror}"')
 
     #Bitfinex Rest Methods
-    @ensure_authorized
+    @utils.ensure_authorized
     def cb_new_order(self, bot, update, args):
         LOGGER.info(f"{update.message.chat.username} : /neworder {args}")
         chat_id = update.message.chat.id
@@ -269,12 +238,12 @@ class Btfxbot:
         tradepair = args[2]
         tradetype = args[3]
 
-        if  not bgu_isnumber(volume):
+        if  not utils.isnumber(volume):
             msgtext = f"incorect volume , {volume} is not a number"
             bot.send_message(chat_id, text=msgtext)
             return
 
-        if  not bgu_isnumber(price):
+        if  not utils.isnumber(price):
             msgtext = f"incorect price , {price} is not a number"
             bot.send_message(chat_id, text=msgtext)
             return
@@ -284,8 +253,8 @@ class Btfxbot:
             bot.send_message(chat_id, text=msgtext, parse_mode='HTML')
             return
 
-        if tradetype not in REST_TYPES:
-            msgtext = f"incorect tradetype , available types are : {REST_TYPES}"
+        if tradetype not in utils.REST_TYPES:
+            msgtext = f"incorect tradetype , available types are : {utils.REST_TYPES}"
             bot.send_message(chat_id, text=msgtext, parse_mode='HTML')
             return
 
@@ -295,7 +264,7 @@ class Btfxbot:
             str(volume),
             price,
             side,
-            REST_TYPES[tradetype],
+            utils.REST_TYPES[tradetype],
             symbol=tradepair
         )
         orderid = neworder['id']
@@ -314,7 +283,7 @@ class Btfxbot:
             LOGGER.info(f"coult not send message keyboard to {chat_id}")
             LOGGER.info(error)
 
-    @ensure_authorized
+    @utils.ensure_authorized
     def cb_wss_calc(self, bot, update, args):
         LOGGER.info(f"{update.message.chat.username} : /calc {args}")
         chat_id = update.message.chat.id
@@ -341,7 +310,7 @@ class Btfxbot:
 
 
     #Bitfinex requests
-    @ensure_authorized
+    @utils.ensure_authorized
     def cb_orders(self, bot, update, args):
         LOGGER.info(f"{update.message.chat.username} : /orders {args}")
         chat_id = update.message.chat.id
@@ -395,109 +364,6 @@ class Btfxbot:
 
         del_order = self.btfx_client.delete_order(order_id)
         LOGGER.info(f"del_order : {del_order}")
-
-
-    ######################### Bitfinex Websocket Methods #########################
-    def _stop_timers(self):
-        """Stops connection timers."""
-        if self.connection_timer:
-            self.connection_timer.cancel()
-        LOGGER.info("_stop_timers(): Timers stopped.")
-
-    def _start_timers(self):
-        """Resets and starts timers for API data and connection."""
-        LOGGER.info("_start_timers(): Resetting timers..")
-        self._stop_timers()
-        # Automatically reconnect if we didnt receive data
-        self.connection_timer = threading.Timer(self.connection_timeout, self._connection_timed_out)
-        self.connection_timer.start()
-
-
-    def _connection_timed_out(self):
-        """Issues a reconnection if the connection timed out.
-        :return:
-        """
-        LOGGER.info("_connection_timed_out(): Fired! Issuing reconnect..")
-        self.btfxwss.close()
-        self.btfxwss.authenticate(self.cb_wss_auth)
-
-    def _cb_heartbeat_handler(self, *args):
-        self._start_timers()
-
-
-    def cb_wss_auth(self, message, *args, **kwargs):
-        if not isinstance(message, list):
-            LOGGER.info(message)
-            return
-
-        types = {
-            'on' : self.on_notification,
-            'oc' : self.oc_notification,
-            'hb' : self._cb_heartbeat_handler,
-            'pu' : self.pu_notification
-        }
-        LOGGER.info(message)
-        LOGGER.info(f"msg type is : {message[1]}")
-        msg_type = message[1]
-        if msg_type in types.keys():
-            types[msg_type](message)
-
-
-    def on_notification(self, message):
-        order_id = message[2][0]
-        order_symbol = message[2][3][1:]
-        order_volume = message[2][6]
-        order_type = message[2][8]
-        order_price = message[2][16]
-        plus_sign = "+" if order_volume > 0 else ""
-
-        formated_message = (
-            "<pre>"
-            f"Order {order_id} {order_symbol} {order_type} "
-            f"{plus_sign}{order_volume} @ {order_price} PLACED"
-            "</pre>"
-        )
-        #send message to everyone who is authenticated
-        self.send_to_users(formated_message)
-
-    def oc_notification(self, message):
-        order_id = message[2][0]
-        order_symbol = message[2][3][1:]
-        order_volume = message[2][6] if message[2][13] == "CANCELED" else message[2][7]
-        order_type = message[2][8]
-        order_status = message[2][13]
-        order_price = message[2][16]
-        plus_sign = "+" if order_volume > 0 else ""
-
-        formated_message = (
-            "<pre>"
-            f"Order {order_id} {order_symbol} {order_type} "
-            f"{plus_sign}{order_volume} @ {order_price} was {order_status}"
-            "</pre>"
-        )
-
-        #send message to everyone who is authenticated
-        self.send_to_users(formated_message)
-
-
-    def pu_notification(self, message):
-        if not all(message[2]):
-            return
-
-        formated_message = (
-            "<pre>"
-            f"Pair         : {message[2][0]}\n"
-            f"Amount       : {message[2][2]}\n"
-            f"Base Price   : {message[2][3]}\n"
-            f"Funding Cost : {message[2][4]}\n"
-            f"Profit/Loss  : {message[2][6]} {message[2][7]}%\n"
-            f"Liquidation  : {message[2][8]}\n"
-            f"Leverage     : {message[2][9]} "
-            "</pre>"
-        )
-        #send message to everyone who is authenticated
-        self.send_to_users(formated_message)
-#########################  Websocket Functions #########################
 
     def send_to_users(self, message):
         for key, value in self.userdata.items():

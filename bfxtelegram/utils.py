@@ -3,17 +3,12 @@
 Module Docstring
 """
 
-__author__ = "Dan Timofte"
-__version__ = "1.0.0"
-__license__ = "MIT"
-
-
 import os
 import re
 import glob
 import json
 import pickle
-
+import logging
 from  datetime import datetime, timedelta
 from math import pi
 import pandas as pd
@@ -22,25 +17,43 @@ from bokeh.plotting import figure
 from bokeh.io import export_png
 from bokeh.layouts import layout
 
-def bgu_isnumber(pnumber):
+# Enable logging
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    level=logging.DEBUG)
+LOGGER = logging.getLogger(__name__)
+
+REST_TYPES = {
+    "mmarket" : "market",
+    "mlimit"  : "limit",
+    "mstop"   : "stop",
+    "mtrail"  : "trailing-stop",
+    "mfok"    : "fill-or-kill",
+    "emarket" : "exchange market",
+    "elimit"  : "exchange limit",
+    "estop"   : "exchange stop",
+    "etrail"  : "exchange trailing-stop",
+    "efok"    : "exchange fill-or-kill"
+}
+
+def isnumber(pnumber):
     num_format = re.compile(r"^[\-]?[0-9]*\.?[0-9]*$")
     if re.match(num_format, pnumber):
         return True
     else:
         return False
 
-def bgu_get_date(unixtime):
+def get_date(unixtime):
     time_stamp = unixtime / 1000
     formated_date = datetime.utcfromtimestamp(time_stamp).strftime('%Y-%m-%d %H:%M:%S')
     return formated_date
 
-def bgu_ensure_dir(file_path):
+def ensure_dir(file_path):
     directory = os.path.dirname(file_path)
     if not os.path.exists(directory):
         os.makedirs(directory)
 
 
-def bgu_read_userdata():
+def read_userdata():
     files = glob.glob('data/usersdata.pickle')
     if not files:
         return {}
@@ -53,17 +66,33 @@ def bgu_read_userdata():
         return pickle_object
 
 
-def bgu_save_userdata(userdata):
+def save_userdata(userdata):
     userdata_file = "data/usersdata.pickle"
-    bgu_ensure_dir(userdata_file)
+    ensure_dir(userdata_file)
     with open(userdata_file, 'wb') as outfile:
         pickle.dump(userdata, outfile)
     human_readable_file = "data/usersdata.json"
     with open(human_readable_file, 'w') as outfile:
         json.dump(userdata, outfile)
 
+def ensure_authorized(passed_function):
+    def wrapper(self, bot, update, *args, **kwargs):
+        chat_id = update.message.chat.id
+        if chat_id not in self.userdata:
+            LOGGER.info("chat id not found in list of chats")
+            message = "<pre>Please authenticate</pre>"
+            bot.send_message(chat_id, text=message, parse_mode='HTML')
+            return
+        authenticated = self.userdata[chat_id]['authenticated']
+        if authenticated == "no":
+            LOGGER.info("user id not authenticated")
+            message = "<pre>Please authenticate</pre>"
+            bot.send_message(chat_id, text=message, parse_mode='HTML')
+            return
+        return passed_function(self, bot, update, *args, **kwargs)
+    return wrapper
 
-def bgu_create_graph(candles_data, active_orders, orders_data, symbol, **kwargs):
+def create_graph(candles_data, active_orders, orders_data, symbol, **kwargs):
     colors_dict = {
         "normal" : ["#98FB98", "#FF0000", "#FF0000", "#98FB98"],
         "colorblind" : ["#00ee00", "#ff00ff", "#ff00ff", "#00ee00"],
@@ -87,7 +116,7 @@ def bgu_create_graph(candles_data, active_orders, orders_data, symbol, **kwargs)
         columns=['date', 'open', 'close', 'high', 'low', 'volume']
     )
 
-    candles_df['date'] = candles_df['date'].apply(bgu_get_date)
+    candles_df['date'] = candles_df['date'].apply(get_date)
     candles_df['volume'] = candles_df['volume'].astype(int)
     candles_df["date"] = pd.to_datetime(candles_df["date"])
     max_price = candles_df['high'].max()

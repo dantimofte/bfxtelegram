@@ -8,7 +8,7 @@ __version__ = "1.0.0"
 __license__ = "MIT"
 
 import os
-from btfxbot import Btfxbot
+from bfxtelegram.btfxbot import Btfxbot
 
 
 if __name__ == "__main__":
