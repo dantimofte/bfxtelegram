@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Module Docstring
+source : https://github.com/Crypto-toolbox/btfxwss/blob/master/btfxwss/connection.py
 """
 import logging
 import threading
@@ -17,14 +18,14 @@ class  Bfxwss(WssClient):
         self.send_to_users = send_to_users
         self.connection_timer = None
         self.connection_timeout = 15
-        self.authenticate(self._cb_wss_auth)
+        self.authenticate(self._auth_messages)
         self.start()
 
     def _stop_timers(self):
         """Stops connection timers."""
         if self.connection_timer:
             self.connection_timer.cancel()
-        LOGGER.info("_stop_timers(): Timers stopped.")
+        LOGGER.info("_stop_timers() : Timers stopped.")
 
     def _start_timers(self):
         """Resets and starts timers for API data and connection."""
@@ -40,31 +41,86 @@ class  Bfxwss(WssClient):
         :return:
         """
         LOGGER.info("_connection_timed_out(): Fired! Issuing reconnect..")
-        self.close()
-        self.authenticate(self._cb_wss_auth)
+        self.reconnect()
 
-    def _cb_heartbeat_handler(self, *args):
+    def _heartbeat_handler(self):
+        LOGGER.info("_hb_handler()  : new heart beat")
         self._start_timers()
 
-    def _cb_wss_auth(self, message, *args, **kwargs):
-        if not isinstance(message, list):
-            LOGGER.info(message)
+
+    def _system_handler(self, data):
+        """Distributes system messages to the appropriate handler.
+        System messages include everything that arrives as a dict,
+        """
+        LOGGER.debug(f"_system_handler(): Received a system message: {data}")
+        event = data.pop('event')
+        if event == 'info':
+            LOGGER.info(f"_system_handler(): Distributing {data} to _info_handler..")
+            self._info_handler(data)
+        else:
+            LOGGER.error("Unhandled event: %s, data: %s", event, data)
+
+    def _info_handler(self, data):
+        """
+        Handle INFO messages from the API and issues relevant actions.
+        """
+
+        if 'code' not in data and 'version' in data:
+            LOGGER.info(f"Initialized Client on API Version {data['version']}")
             return
 
-        types = {
-            'on' : self._cb_on_notification,
-            'oc' : self._cb_oc_notification,
-            'hb' : self._cb_heartbeat_handler,
-            'pu' : self._cb_pu_notification
+        info_message = {
+            20000: 'Invalid User given! Please make sure the given ID is correct!',
+            20051: 'Stop/Restart websocket server (please try to reconnect)',
+            20060: 'Refreshing data from the trading engine; please pause any acivity.',
+            20061: 'Done refreshing data from the trading engine. Re-subscription advised.'
         }
-        LOGGER.info(message)
-        LOGGER.info(f"msg type is : {message[1]}")
-        msg_type = message[1]
+
+        codes = {20051: self.reconnect, 20060: self.pause, 20061: self.unpause}
+
+        if 'version' in data:
+            LOGGER.info(f"API version: {data['version']}")
+            return
+
+        try:
+            LOGGER.info(info_message[data['code']])
+            codes[data['code']]()
+        except KeyError as exception:
+            LOGGER.exception(exception)
+            LOGGER.error(f"Unknown Info code {data['code']}!")
+            raise
+
+
+
+    def _auth_messages(self, data):
+        # Handle data
+        if isinstance(data, dict):
+            self._system_handler(data)
+        else:
+            # This is a list of data
+            if data[1] == 'hb':
+                self._heartbeat_handler()
+            else:
+                self._data_handler(data)
+
+
+
+    def _data_handler(self, data):
+        # Pass the data up to the Client
+        LOGGER.debug(f"_data_handler(): Passing {data} to client..")
+
+        types = {
+            'on' : self._on_notification,
+            'oc' : self._oc_notification,
+            'hb' : self._heartbeat_handler,
+            'pu' : self._pu_notification
+        }
+        LOGGER.info(data)
+        msg_type = data[1]
         if msg_type in types.keys():
-            types[msg_type](message)
+            types[msg_type](data)
 
-
-    def _cb_on_notification(self, message):
+    def _on_notification(self, message):
         order_id = message[2][0]
         order_symbol = message[2][3][1:]
         order_volume = message[2][6]
@@ -81,7 +137,7 @@ class  Bfxwss(WssClient):
         #send message to everyone who is authenticated
         self.send_to_users(formated_message)
 
-    def _cb_oc_notification(self, message):
+    def _oc_notification(self, message):
         order_id = message[2][0]
         order_symbol = message[2][3][1:]
         order_volume = message[2][6] if message[2][13] == "CANCELED" else message[2][7]
@@ -101,7 +157,7 @@ class  Bfxwss(WssClient):
         self.send_to_users(formated_message)
 
 
-    def _cb_pu_notification(self, message):
+    def _pu_notification(self, message):
         if not all(message[2]):
             return
 
@@ -118,3 +174,15 @@ class  Bfxwss(WssClient):
         )
         #send message to everyone who is authenticated
         self.send_to_users(formated_message)
+
+    def reconnect(self):
+        self.close()
+        self.authenticate(self._auth_messages)
+
+    def pause(self):
+        self.close()
+        self._stop_timers()
+
+    def unpause(self):
+        self.authenticate(self._auth_messages)
+        self._start_timers()

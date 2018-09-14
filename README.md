@@ -1,4 +1,4 @@
-# bitfinex-telegram
+# bfxtelegram
 Control your bitfinex account using a telegram bot
 
 ## Set-up
