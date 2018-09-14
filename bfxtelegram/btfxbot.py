@@ -156,7 +156,7 @@ class Btfxbot:
         username = update.message.chat.username
         first_name = update.message.chat.first_name
         last_name = update.message.chat.last_name
-        LOGGER.info(f"{chat_id} {username} : /neworder {args}")
+        LOGGER.info(f"{chat_id} {username} : /auth {args}")
         if len(args) < 1:
             utils.send_help(bot, chat_id, "auth")
             return
@@ -167,10 +167,23 @@ class Btfxbot:
         else:
             userinfo = {"authenticated" : "no", "failed_auth" : 0}
 
+        #ignore user if he keeps forcing /auth
+        if userinfo['failed_auth'] > 20:
+            return
+
+        #notify user that there have been to many failed atempts
+        if userinfo['failed_auth'] > 10:
+            bot.send_message(chat_id, text="you are blocked")
+            userinfo["failed_auth"] += 1
+            self.userdata[chat_id] = userinfo
+            utils.save_userdata(self.userdata)
+            return
+
         if botpass == self.auth_pass:
             message = "<pre>authentication successfull </pre>"
             bot.send_message(chat_id, text=message, parse_mode='HTML')
             userinfo["authenticated"] = "yes"
+            userinfo["failed_auth"] = 0
             userinfo["telegram_user"] = username
             userinfo["telegram_name"] = f"{first_name} {last_name}"
         else:
@@ -232,6 +245,11 @@ class Btfxbot:
             utils.REST_TYPES[tradetype],
             symbol=tradepair
         )
+
+        if 'message' in neworder:
+            bot.send_message(chat_id, text=neworder['message'])
+            return
+
         orderid = neworder['id']
         buttons = [
             #InlineKeyboardButton('Update Price', callback_data=f"neworder:updprice:{orderid}"),
@@ -298,13 +316,28 @@ class Btfxbot:
         LOGGER.info(f"orders_type : {orders_type}")
 
         active_orders = self.btfx_client.active_orders()
-        for order in active_orders:
+        if orders_type == "margin":
+            orders_list = [order for order in active_orders if 'exchange' not in order['type']]
+        else:
+            orders_list = [order for order in active_orders if 'exchange' in order['type']]
+        print(f"orders list : {orders_list}")
+        print(f"orders bool : {not orders_list}")
+        if not orders_list:
+            msgtext = f"no active {orders_type} orders found"
+            bot.send_message(chat_id, text=msgtext, parse_mode='HTML')
+            return
+
+        for order in orders_list:
             order_id = order['id']
             symbol = order['symbol']
             side = order['side']
             original_amount = order['original_amount']
+            remaining_amount = order['remaining_amount']
             price = order['price']
-            formated_message = f"{order_id}: {symbol} {side} {original_amount}@{price}"
+            formated_message = (
+                f"{order_id}: {symbol} {side} {remaining_amount}@{price} "
+                f"original amount : {original_amount}"
+            )
             buttons = [InlineKeyboardButton('cancel', callback_data=f'cancel_order:{order_id}')]
             keyboard = InlineKeyboardMarkup([buttons])
             try:
@@ -323,6 +356,9 @@ class Btfxbot:
         LOGGER.info(f"orderid : {order_id}")
 
         del_order = self.btfx_client.delete_order(order_id)
+        if 'message' in del_order:
+            bot.send_message(chat_id, text=del_order['message'])
+
         LOGGER.info(f"del_order : {del_order}")
 
     def send_to_users(self, message):

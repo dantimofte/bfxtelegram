@@ -176,8 +176,13 @@ class  Bfxwss(WssClient):
         self.send_to_users(formated_message)
 
     def reconnect(self):
+        LOGGER.info(f"reconnect(): started")
         self.close()
+        LOGGER.info(f"reconnect(): closed finished")
         self.authenticate(self._auth_messages)
+        LOGGER.info(f"reconnect(): authenticate finished")
+        self._start_timers()
+        LOGGER.info(f"reconnect(): timers started")
 
     def pause(self):
         self.close()
