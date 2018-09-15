@@ -73,6 +73,24 @@ CMDHELP = {
 }
 
 
+def ensure_authorized(passed_function):
+    def wrapper(self, bot, update, *args, **kwargs):
+        chat_id = update.message.chat.id
+        if chat_id not in self.userdata:
+            LOGGER.info("chat id not found in list of chats")
+            message = "<pre>Please authenticate</pre>"
+            bot.send_message(chat_id, text=message, parse_mode='HTML')
+            return
+        authenticated = self.userdata[chat_id]['authenticated']
+        if authenticated == "no":
+            LOGGER.info("user id not authenticated")
+            message = "<pre>Please authenticate</pre>"
+            bot.send_message(chat_id, text=message, parse_mode='HTML')
+            return
+        return passed_function(self, bot, update, *args, **kwargs)
+    return wrapper
+
+
 def send_help(bot, chat_id, help_key):
     helps = " ".join(CMDHELP.keys())
     formated_message = f"<pre>help is available for : {helps}</pre>"
@@ -120,23 +138,6 @@ def save_userdata(userdata):
     human_readable_file = "data/usersdata.json"
     with open(human_readable_file, 'w') as outfile:
         json.dump(userdata, outfile)
-
-def ensure_authorized(passed_function):
-    def wrapper(self, bot, update, *args, **kwargs):
-        chat_id = update.message.chat.id
-        if chat_id not in self.userdata:
-            LOGGER.info("chat id not found in list of chats")
-            message = "<pre>Please authenticate</pre>"
-            bot.send_message(chat_id, text=message, parse_mode='HTML')
-            return
-        authenticated = self.userdata[chat_id]['authenticated']
-        if authenticated == "no":
-            LOGGER.info("user id not authenticated")
-            message = "<pre>Please authenticate</pre>"
-            bot.send_message(chat_id, text=message, parse_mode='HTML')
-            return
-        return passed_function(self, bot, update, *args, **kwargs)
-    return wrapper
 
 def create_graph(candles_data, active_orders, orders_data, symbol, **kwargs):
     colors_dict = {
