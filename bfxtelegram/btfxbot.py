@@ -3,11 +3,6 @@
 Module Docstring
 """
 
-__author__ = "Dan Timofte"
-__version__ = "1.0.0"
-__license__ = "MIT"
-
-
 import logging
 ##### telegram libraries
 from telegram.ext import Updater
@@ -20,11 +15,30 @@ from bitfinex import ClientV2 as Client2
 
 from bfxtelegram.bfxwss import Bfxwss
 from bfxtelegram import utils
+from bfxtelegram import graph
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.DEBUG)
 LOGGER = logging.getLogger(__name__)
+
+
+def ensure_authorized(passed_function):
+    def wrapper(self, bot, update, *args, **kwargs):
+        chat_id = update.message.chat.id
+        if chat_id not in self.userdata:
+            LOGGER.info("chat id not found in list of chats")
+            message = "<pre>Please authenticate</pre>"
+            bot.send_message(chat_id, text=message, parse_mode='HTML')
+            return
+        authenticated = self.userdata[chat_id]['authenticated']
+        if authenticated == "no":
+            LOGGER.info("user id not authenticated")
+            message = "<pre>Please authenticate</pre>"
+            bot.send_message(chat_id, text=message, parse_mode='HTML')
+            return
+        return passed_function(self, bot, update, *args, **kwargs)
+    return wrapper
 
 
 class Btfxbot:
@@ -75,7 +89,7 @@ class Btfxbot:
     def cb_start(self, bot, update):
         update.message.reply_text('Here be Dragons')
 
-    @utils.ensure_authorized
+    @ensure_authorized
     def cb_graph(self, bot, update, args):
         LOGGER.info(f"{update.message.chat.username} : /graph {args}")
         chat_id = update.message.chat.id
@@ -108,16 +122,16 @@ class Btfxbot:
             graphtheme = "normal"
 
         orders_data = order_book['asks'] + order_book['bids']
-        utils.create_graph(candles_data, active_orders, orders_data, symbol, graphtheme=graphtheme)
+        graph.create_graph(candles_data, active_orders, orders_data, symbol, graphtheme=graphtheme)
         bot.send_photo(chat_id=chat_id, photo=open('graph.png', 'rb'))
 
-    @utils.ensure_authorized
+    @ensure_authorized
     def cb_option(self, bot, update, args):
         LOGGER.info(f"{update.message.chat.username} : /option {args}")
         chat_id = update.message.chat.id
 
         if len(args) < 2:
-            utils.send_help(bot, chat_id, "option")
+            self.send_help(chat_id, "option")
             return
 
         optname = args[0]
@@ -158,7 +172,7 @@ class Btfxbot:
         last_name = update.message.chat.last_name
         LOGGER.info(f"{chat_id} {username} : /auth {args}")
         if len(args) < 1:
-            utils.send_help(bot, chat_id, "auth")
+            self.send_help(chat_id, "auth")
             return
 
         botpass = args[0]
@@ -202,14 +216,14 @@ class Btfxbot:
         LOGGER.warning(f'Update "{update}" caused error "{boterror}"')
 
     #Bitfinex Rest Methods
-    @utils.ensure_authorized
+    @ensure_authorized
     def cb_new_order(self, bot, update, args):
         LOGGER.info(f"{update.message.chat.username} : /neworder {args}")
         chat_id = update.message.chat.id
 
         ###### Verify order parameters
         if len(args) < 4:
-            utils.send_help(bot, chat_id, "neworder")
+            self.send_help(chat_id, "neworder")
             return
 
         volume = args[0]
@@ -266,13 +280,13 @@ class Btfxbot:
             LOGGER.info(f"coult not send message keyboard to {chat_id}")
             LOGGER.info(error)
 
-    @utils.ensure_authorized
+    @ensure_authorized
     def cb_calc(self, bot, update, args):
         LOGGER.info(f"{update.message.chat.username} : /calc {args}")
         chat_id = update.message.chat.id
 
         if len(args) < 1 and 'calctype' not in self.userdata[chat_id]:
-            utils.send_help(bot, chat_id, "calc")
+            self.send_help(chat_id, "calc")
             return
 
         if 'calctype' in self.userdata[chat_id]:
@@ -282,7 +296,7 @@ class Btfxbot:
         self.btfxwss.calc([calctype])
 
 
-    @utils.ensure_authorized
+    @ensure_authorized
     def cb_orders(self, bot, update, args):
         LOGGER.info(f"{update.message.chat.username} : /orders {args}")
         chat_id = update.message.chat.id
@@ -299,12 +313,12 @@ class Btfxbot:
             print(f"coult not send message keyboard to {chat_id}")
             print(error)
 
-    @utils.ensure_authorized
+    @ensure_authorized
     def cb_help(self, bot, update, args):
         LOGGER.info(f"{update.message.chat.username} : /help {args}")
         chat_id = update.message.chat.id
         help_key = args[0] if args else "none"
-        utils.send_help(bot, chat_id, help_key)
+        self.send_help(chat_id, help_key)
 
     def cb_btn_orders(self, bot, update):
         query = update.callback_query
@@ -320,8 +334,6 @@ class Btfxbot:
             orders_list = [order for order in active_orders if 'exchange' not in order['type']]
         else:
             orders_list = [order for order in active_orders if 'exchange' in order['type']]
-        print(f"orders list : {orders_list}")
-        print(f"orders bool : {not orders_list}")
         if not orders_list:
             msgtext = f"no active {orders_type} orders found"
             bot.send_message(chat_id, text=msgtext, parse_mode='HTML')
@@ -368,3 +380,11 @@ class Btfxbot:
                     self.tbot.send_message(key, text=message, parse_mode='HTML')
                 except (TimedOut, TelegramError):
                     LOGGER.error(f"coult not send message to {key}")
+
+    def send_help(self, chat_id, help_key):
+        helps = " ".join(utils.CMDHELP.keys())
+        formated_message = f"<pre>help is available for : {helps}</pre>"
+        if help_key not in utils.CMDHELP:
+            self.tbot.send_message(chat_id, text=formated_message, parse_mode='HTML')
+            return
+        self.tbot.send_message(chat_id, text=utils.CMDHELP[help_key], parse_mode='HTML')
