@@ -15,7 +15,7 @@ from bitfinex import ClientV2 as Client2
 
 from bfxtelegram.bfxwss import Bfxwss
 from bfxtelegram import utils
-from bfxtelegram import graph
+from bfxtelegram.tgraph import Tgraph
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -122,8 +122,10 @@ class Btfxbot:
             graphtheme = "normal"
 
         orders_data = order_book['asks'] + order_book['bids']
-        graph.create_graph(candles_data, active_orders, orders_data, symbol, graphtheme=graphtheme)
+        newgraph = Tgraph(candles_data, active_orders, orders_data, symbol, graphtheme=graphtheme)
+        newgraph.save_picture()
         bot.send_photo(chat_id=chat_id, photo=open('graph.png', 'rb'))
+        del newgraph
 
     @ensure_authorized
     def cb_option(self, bot, update, args):
