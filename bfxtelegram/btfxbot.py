@@ -4,12 +4,12 @@ Module Docstring
 """
 
 import logging
-##### telegram libraries
+# telegram libraries
 from telegram.ext import Updater
 from telegram.ext import CallbackQueryHandler, CommandHandler
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import (TelegramError, TimedOut)
-##### bitfinex libraries
+# bitfinex libraries
 from bitfinex import ClientV1 as Client
 from bitfinex import ClientV2 as Client2
 
@@ -84,8 +84,7 @@ class Btfxbot:
         # non-blocking and will stop the bot gracefully.
         updater.idle()
 
-
-    ############ CALLBACK FUNCTIONS
+    # CALLBACK FUNCTIONS
     def cb_start(self, bot, update):
         update.message.reply_text('Here be Dragons')
 
@@ -113,7 +112,7 @@ class Btfxbot:
         active_orders = self.btfx_client.active_orders()
         order_book = self.btfx_client.order_book(
             "iotusd",
-            parameters={"limit_bids":800, "limit_asks":800}
+            parameters={"limit_bids": 800, "limit_asks": 800}
         )
 
         if 'graphtheme' in self.userdata[chat_id]:
@@ -160,7 +159,6 @@ class Btfxbot:
             bot.send_message(chat_id, text=msgtext, parse_mode='HTML')
             return
 
-
         self.userdata[chat_id][optname] = optvalue
         utils.save_userdata(self.userdata)
 
@@ -181,13 +179,13 @@ class Btfxbot:
         if chat_id in self.userdata:
             userinfo = self.userdata[chat_id]
         else:
-            userinfo = {"authenticated" : "no", "failed_auth" : 0}
+            userinfo = {"authenticated": "no", "failed_auth": 0}
 
-        #ignore user if he keeps forcing /auth
+        # ignore user if he keeps forcing /auth
         if userinfo['failed_auth'] > 20:
             return
 
-        #notify user that there have been to many failed atempts
+        # notify user that there have been to many failed atempts
         if userinfo['failed_auth'] > 10:
             bot.send_message(chat_id, text="you are blocked")
             userinfo["failed_auth"] += 1
@@ -217,13 +215,13 @@ class Btfxbot:
         """Log Errors caused by Updates."""
         LOGGER.warning(f'Update "{update}" caused error "{boterror}"')
 
-    #Bitfinex Rest Methods
+    # Bitfinex Rest Methods
     @ensure_authorized
     def cb_new_order(self, bot, update, args):
         LOGGER.info(f"{update.message.chat.username} : /neworder {args}")
         chat_id = update.message.chat.id
 
-        ###### Verify order parameters
+        # Verify order parameters
         if len(args) < 4:
             self.send_help(chat_id, "neworder")
             return
@@ -233,11 +231,11 @@ class Btfxbot:
         tradepair = args[2]
         tradetype = args[3]
 
-        if  not utils.isnumber(volume):
+        if not utils.isnumber(volume):
             bot.send_message(chat_id, text=f"incorect volume , {volume} is not a number")
             return
 
-        if  not utils.isnumber(price):
+        if not utils.isnumber(price):
             bot.send_message(chat_id, text=f"incorect price , {price} is not a number")
             return
 
@@ -268,8 +266,8 @@ class Btfxbot:
 
         orderid = neworder['id']
         buttons = [
-            #InlineKeyboardButton('Update Price', callback_data=f"neworder:updprice:{orderid}"),
-            #InlineKeyboardButton('Update Volume', callback_data=f"neworder:updvolume:{orderid}"),
+            # InlineKeyboardButton('Update Price', callback_data=f"neworder:updprice:{orderid}"),
+            # InlineKeyboardButton('Update Volume', callback_data=f"neworder:updvolume:{orderid}"),
             InlineKeyboardButton('Cancel order', callback_data=f"cancel_order:{orderid}")
         ]
         keyboard = InlineKeyboardMarkup([buttons])
@@ -296,7 +294,6 @@ class Btfxbot:
 
         calctype = args[0] if args else default_type
         self.btfxwss.calc([calctype])
-
 
     @ensure_authorized
     def cb_orders(self, bot, update, args):

@@ -7,25 +7,27 @@ from datetime import datetime, timedelta
 from math import pi
 import pandas as pd
 
-#####bokeh libraries
+# bokeh libraries
 from bokeh.plotting import figure
 from bokeh.io import export_png
 from bokeh.layouts import layout
 
 
 COLOR_THEME = {
-    "normal" :
-    {"up" : "#98FB98", "down" : "#FF0000", "sell_order" : "#FF0000", "buy_order" : "#98FB98"},
-    "colorblind" :
-    {"up" : "#00ee00", "down" : "#ff00ff", "sell_order" : "#ff00ff", "buy_order" : "#00ee00"},
-    "monochrome" :
-    {"up" : "white", "down" : "black", "sell_order" : "black", "buy_order" : "black"}
+    "normal":
+    {"up": "#98FB98", "down": "#FF0000", "sell_order": "#FF0000", "buy_order": "#98FB98"},
+    "colorblind":
+    {"up": "#00ee00", "down": "#ff00ff", "sell_order": "#ff00ff", "buy_order": "#00ee00"},
+    "monochrome":
+    {"up": "white", "down": "black", "sell_order": "black", "buy_order": "black"}
 }
+
 
 def get_date(unixtime):
     time_stamp = unixtime / 1000
     formated_date = datetime.utcfromtimestamp(time_stamp).strftime('%Y-%m-%d %H:%M:%S')
     return formated_date
+
 
 class Tgraph:
     def __init__(self, candles_data, active_orders, orders_data, symbol, **kwargs):
@@ -35,9 +37,14 @@ class Tgraph:
         self.active_orders = active_orders
         self.orders_data = orders_data
 
+        print(f"candles_data {candles_data}")
+        print(f"active_orders {active_orders}")
+        print(f"orders_data {orders_data}")
+        print(f"symbol {symbol}")
+
         candles_df = self.build_dataframe()
 
-        self.candle_width = 30*60*1000 # half an hour in ms
+        self.candle_width = 30 * 60 * 1000  # half an hour in ms
 
         self.x_min = candles_df['date'].min() - timedelta(hours=1)
         self.x_max = candles_df['date'].max() + timedelta(hours=1)
@@ -113,9 +120,8 @@ class Tgraph:
 
         candles_graph.xaxis.major_label_text_font_size = "12pt"
         candles_graph.xaxis[0].ticker.desired_num_ticks = 30
-        candles_graph.xaxis.major_label_orientation = pi/2
+        candles_graph.xaxis.major_label_orientation = pi / 2
         candles_graph.grid.grid_line_alpha = 0.3
-
 
         candles_graph.segment(
             candles_df.date,
@@ -150,15 +156,15 @@ class Tgraph:
         min_price = float(candles_df['low'].min())
         for order in self.active_orders:
             price = float(order['price'])
-            if price > max_price  or price < min_price:
+            if price > max_price or price < min_price:
                 continue
-            line = [price]*candles_df.shape[0]
+            line = [price] * candles_df.shape[0]
             if order['side'] == 'sell':
                 sign = "-"
                 sells.append(line)
                 candles_graph.rect(
-                    x=x_text+timedelta(hours=3),
-                    y=price+0.002,
+                    x=x_text + timedelta(hours=3),
+                    y=price + 0.002,
                     width=timedelta(hours=7),
                     height=0.005,
                     fill_color="white"
@@ -167,8 +173,8 @@ class Tgraph:
                 buys.append(line)
                 sign = "+"
                 candles_graph.rect(
-                    x=x_text+timedelta(hours=3),
-                    y=price+0.002,
+                    x=x_text + timedelta(hours=3),
+                    y=price + 0.002,
                     width=timedelta(hours=7),
                     height=0.005,
                     fill_color="white"
@@ -181,14 +187,14 @@ class Tgraph:
                 text_font_style='bold'
             )
 
-        #### add current price
+        # add current price
         current_price = float(candles_df['close'][0])
-        new_line = [current_price]*candles_df.shape[0]
+        new_line = [current_price] * candles_df.shape[0]
         if candles_df['open'][0] > candles_df['close'][0]:
             sells.append(new_line)
             candles_graph.rect(
-                x=x_text+timedelta(hours=3),
-                y=current_price+0.002,
+                x=x_text + timedelta(hours=3),
+                y=current_price + 0.002,
                 width=timedelta(hours=7),
                 height=0.005,
                 fill_color="white"
@@ -196,8 +202,8 @@ class Tgraph:
         else:
             buys.append(new_line)
             candles_graph.rect(
-                x=x_text+timedelta(hours=3),
-                y=current_price+0.002,
+                x=x_text + timedelta(hours=3),
+                y=current_price + 0.002,
                 width=timedelta(hours=7),
                 height=0.005,
                 fill_color="white"
@@ -211,25 +217,23 @@ class Tgraph:
             text_font_style='bold'
         )
 
-        #add sell lines
+        # add sell lines
         candles_graph.multi_line(
-            xs=[candles_df.seq]*len(sells),
+            xs=[candles_df.seq] * len(sells),
             ys=sells,
             line_color=self.colors['sell_order'],
             line_dash="dashed",
             line_width=1
         )
 
-        #add buy lines
+        # add buy lines
         candles_graph.multi_line(
-            xs=[candles_df.seq]*len(buys),
+            xs=[candles_df.seq] * len(buys),
             ys=buys,
             line_color=self.colors['buy_order'],
             line_width=1
         )
-
         return candles_graph
-
 
     def rsi_graph(self, candles_df):
         rsi_graph = figure(
@@ -242,12 +246,12 @@ class Tgraph:
         )
         rsi_graph.xaxis.visible = False
         rsi_graph.multi_line(
-            xs=[candles_df.seq]*4,
+            xs=[candles_df.seq] * 4,
             ys=[
                 candles_df.rsi_ewma,
-                [20]*candles_df.shape[0],
-                [50]*candles_df.shape[0],
-                [80]*candles_df.shape[0]
+                [20] * candles_df.shape[0],
+                [50] * candles_df.shape[0],
+                [80] * candles_df.shape[0]
             ],
             line_color=['red', 'black', 'gray', 'black'],
             line_width=1
@@ -257,7 +261,7 @@ class Tgraph:
         return rsi_graph
 
     def volume_graph(self, candles_df):
-        ########### Historic Volume GRAPH
+        # Historic Volume GRAPH
         volume_max = int(candles_df['volume'].max())
         volume_graph = figure(
             plot_width=1000,
@@ -273,7 +277,7 @@ class Tgraph:
         volume_graph.vbar(
             candles_df.date,
             self.candle_width,
-            candles_df.volume*0,
+            candles_df.volume * 0,
             candles_df.volume,
             fill_color="blue",
             line_color="black"
@@ -281,7 +285,7 @@ class Tgraph:
         return volume_graph
 
     def active_orders_graph(self):
-        ########### Volume in active orders GRAPH
+        # Volume in active orders GRAPH
         orderbook_df = pd.DataFrame.from_dict(self.orders_data, orient='columns')
 
         orders_vol_graph = figure(
@@ -294,11 +298,11 @@ class Tgraph:
         orders_vol_graph.yaxis.visible = False
         orders_vol_graph.xaxis.major_label_text_font_size = "8pt"
         orders_vol_graph.xaxis[0].ticker.desired_num_ticks = 5
-        orders_vol_graph.xaxis.major_label_orientation = pi/2
+        orders_vol_graph.xaxis.major_label_orientation = pi / 2
 
         orders_vol_graph.hbar(
             y=orderbook_df.price,
-            left=orderbook_df.amount*0,
+            left=orderbook_df.amount * 0,
             right=orderbook_df.amount,
             height=0.1
         )
@@ -320,5 +324,5 @@ class Tgraph:
         return colors_dict
 
     def save_picture(self):
-        ############ export the graph
+        # export the graph
         export_png(self.graphs_layout, filename="graph.png")

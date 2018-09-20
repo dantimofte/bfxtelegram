@@ -37,20 +37,20 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 LOGGER = logging.getLogger(__name__)
 
 REST_TYPES = {
-    "mmarket" : "market",
-    "mlimit"  : "limit",
-    "mstop"   : "stop",
-    "mtrail"  : "trailing-stop",
-    "mfok"    : "fill-or-kill",
-    "emarket" : "exchange market",
-    "elimit"  : "exchange limit",
-    "estop"   : "exchange stop",
-    "etrail"  : "exchange trailing-stop",
-    "efok"    : "exchange fill-or-kill"
+    "mmarket": "market",
+    "mlimit": "limit",
+    "mstop": "stop",
+    "mtrail": "trailing-stop",
+    "mfok": "fill-or-kill",
+    "emarket": "exchange market",
+    "elimit": "exchange limit",
+    "estop": "exchange stop",
+    "etrail": "exchange trailing-stop",
+    "efok": "exchange fill-or-kill"
 }
 
 CMDHELP = {
-    "option" : (
+    "option": (
         "<pre>"
         "/option defaultpair symbol\n"
         "  symbols : iotusd, btcusd, ltcusd, ethusd\n"
@@ -60,20 +60,20 @@ CMDHELP = {
         "  ex : /option calctype position_tIOTUSD\n"
         "</pre>"
     ),
-    "auth" : (
+    "auth": (
         "<pre>"
         "please run /auth password\n"
         "AUTH_PASS set in the .env file"
         "</pre>"
     ),
-    "neworder" : (
+    "neworder": (
         "<pre>"
         "New order is placed like this : \n"
         "/neworder ±volume price tradepair tradetype\n"
         "/neworder -100 4.00 iotusd elimit"
         "</pre>"
     ),
-    "calc" : (
+    "calc": (
         "<pre>"
         "Calculations are requested with the command : /calc type\n"
         "Possible prefixes:\n"
@@ -85,6 +85,7 @@ CMDHELP = {
         "</pre>"
     )
 }
+
 
 def isnumber(pnumber):
     num_format = re.compile(r"^[\-]?[0-9]*\.?[0-9]*$")
