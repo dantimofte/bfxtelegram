@@ -8,7 +8,7 @@ Control your bitfinex account using a telegram bot
 	set all the environment variables from the .env-example
 
 	List of public commands for BotFather:
-	start - /start : verify if the bot is running
+	start - /start : Initiate chat and check if the bot is running
 	auth - /auth you_bot_password 
 	orders - /orders (list of active orders)
 	neworder - /neworder ±volume price tradepair tradetype

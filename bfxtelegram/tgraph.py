@@ -23,12 +23,6 @@ COLOR_THEME = {
 }
 
 
-def get_date(unixtime):
-    time_stamp = unixtime / 1000
-    formated_date = datetime.utcfromtimestamp(time_stamp).strftime('%Y-%m-%d %H:%M:%S')
-    return formated_date
-
-
 class Tgraph:
     def __init__(self, candles_data, active_orders, orders_data, symbol, **kwargs):
         self.colors = self.set_colors(**kwargs)
@@ -37,11 +31,6 @@ class Tgraph:
         self.active_orders = active_orders
         self.orders_data = orders_data
 
-        print(f"candles_data {candles_data}")
-        print(f"active_orders {active_orders}")
-        print(f"orders_data {orders_data}")
-        print(f"symbol {symbol}")
-
         candles_df = self.build_dataframe()
 
         self.candle_width = 30 * 60 * 1000  # half an hour in ms
@@ -49,10 +38,10 @@ class Tgraph:
         self.x_min = candles_df['date'].min() - timedelta(hours=1)
         self.x_max = candles_df['date'].max() + timedelta(hours=1)
 
-        cdl_graph = self.candles_graph(candles_df)
-        ao_graph = self.active_orders_graph()
-        vol_graph = self.volume_graph(candles_df)
-        rsi_graph = self.rsi_graph(candles_df)
+        cdl_graph = self.build_candles_graph(candles_df)
+        ao_graph = self.build_active_orders_graph()
+        vol_graph = self.build_volume_graph(candles_df)
+        rsi_graph = self.build_rsi_graph(candles_df)
 
         self.graphs_layout = layout(
             children=[
@@ -67,6 +56,11 @@ class Tgraph:
             self.candles_data,
             columns=['date', 'open', 'close', 'high', 'low', 'volume']
         )
+
+        def get_date(unixtime):
+            time_stamp = unixtime / 1000
+            formated_date = datetime.utcfromtimestamp(time_stamp).strftime('%Y-%m-%d %H:%M:%S')
+            return formated_date
 
         candles_df['date'] = candles_df['date'].apply(get_date)
         candles_df['volume'] = candles_df['volume'].astype(int)
@@ -105,7 +99,7 @@ class Tgraph:
 
         return candles_df
 
-    def candles_graph(self, candles_df):
+    def build_candles_graph(self, candles_df):
         x_text = candles_df['date'].min()
 
         candles_graph = figure(
@@ -235,7 +229,7 @@ class Tgraph:
         )
         return candles_graph
 
-    def rsi_graph(self, candles_df):
+    def build_rsi_graph(self, candles_df):
         rsi_graph = figure(
             plot_width=1000,
             plot_height=100,
@@ -260,7 +254,7 @@ class Tgraph:
 
         return rsi_graph
 
-    def volume_graph(self, candles_df):
+    def build_volume_graph(self, candles_df):
         # Historic Volume GRAPH
         volume_max = int(candles_df['volume'].max())
         volume_graph = figure(
@@ -284,7 +278,7 @@ class Tgraph:
         )
         return volume_graph
 
-    def active_orders_graph(self):
+    def build_active_orders_graph(self):
         # Volume in active orders GRAPH
         orderbook_df = pd.DataFrame.from_dict(self.orders_data, orient='columns')
 

@@ -17,9 +17,6 @@ class UtilsTests(unittest.TestCase):
             utils.isnumber("100.a")
         )
 
-    # def test_get_date():
-    #    assert utils.get_date(1537092000000) == '2018-09-16 10:00:00'
-
     def test_ensure_dir(self):
         self.assertIsNone(
             utils.ensure_dir("tests/__pycache__")

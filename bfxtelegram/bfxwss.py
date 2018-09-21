@@ -11,10 +11,10 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
                     level=logging.DEBUG)
 LOGGER = logging.getLogger(__name__)
 
-class  Bfxwss(WssClient):
-    def __init__(self, bot, send_to_users, key="", secret=""):
+
+class Bfxwss(WssClient):
+    def __init__(self, send_to_users, key="", secret=""):
         super().__init__(key=key, secret=secret)
-        self.tbot = bot
         self.send_to_users = send_to_users
         self.connection_timer = None
         self.connection_timeout = 15
@@ -35,7 +35,6 @@ class  Bfxwss(WssClient):
         self.connection_timer = threading.Timer(self.connection_timeout, self._connection_timed_out)
         self.connection_timer.start()
 
-
     def _connection_timed_out(self):
         """Issues a reconnection if the connection timed out.
         :return:
@@ -46,7 +45,6 @@ class  Bfxwss(WssClient):
     def _heartbeat_handler(self):
         LOGGER.info("_hb_handler()  : new heart beat")
         self._start_timers()
-
 
     def _system_handler(self, data):
         """Distributes system messages to the appropriate handler.
@@ -90,8 +88,6 @@ class  Bfxwss(WssClient):
             LOGGER.error(f"Unknown Info code {data['code']}!")
             raise
 
-
-
     def _auth_messages(self, data):
         # Handle data
         if isinstance(data, dict):
@@ -103,24 +99,173 @@ class  Bfxwss(WssClient):
             else:
                 self._data_handler(data)
 
-
-
     def _data_handler(self, data):
         # Pass the data up to the Client
+        """
+            bu           : balance update
+            ps           : position snapshot
+            pn           : new position
+            pu           : position update
+            pc           : position close
+            ws           : wallet snapshot
+            wu           : wallet update
+            os           : order snapshot
+            on           : new order
+            on-req       : new order request
+            ou           : order update
+            oc           : order cancel
+            oc-req       : order cancel request
+            oc_multi-req : multiple orders cancel request
+            te           : trade executed
+            tu           : trade execution update
+            fte          : funding trade execution
+            ftu          : funding trade update
+            hos          : historical order snapshot
+            mis          : margin information snapshot
+            miu          : margin information update
+            n            : notification
+            fos          : funding offer snapshot
+            fon          : funding offer new
+            fou          : funding offer update
+            foc          : funding offer cancel
+            hfos         : historical funding offer snapshot
+            fcs          : funding credits snapshot
+            fcn          : funding credits new
+            fcu          : funding credits update
+            fcc          : funding credits close
+            hfcs         : historical funding credits snapshot
+            fls          : funding loan snapshot
+            fln          : funding loan new
+            flu          : funding loan update
+            flc          : funding loan close
+            hfls         : historical funding loan snapshot
+            hfts         : historical funding trade snapshot
+            uac          : user custom price alert
+        """
         LOGGER.debug(f"_data_handler(): Passing {data} to client..")
 
         types = {
-            'on' : self._on_notification,
-            'oc' : self._oc_notification,
-            'hb' : self._heartbeat_handler,
-            'pu' : self._pu_notification
+            'bu': self._send_bu_msg,
+            'ps': self._send_ps_msg,
+            'pn': self._send_pn_msg,
+            'pu': self._send_pu_msg,
+            'pc': self._send_pc_msg,
+            'ws': self._send_ws_msg,
+            'wu': self._send_wu_msg,
+            'os': self._send_os_msg,
+            'on': self._send_on_msg,
+            'on-req': self._send_onreq_msg,
+            'ou': self._send_ou_msg,
+            'oc': self._send_oc_msg,
+            'oc-req': self._send_ocreq_msg,
+            'oc_multi-req': self._send_ocmultireq_msg,
+            'te': self._send_te_msg,
+            'tu': self._send_tu_msg,
+            'fte': self._send_fte_msg,
+            'ftu': self._send_ftu_msg,
+            'hos': self._send_hos_msg,
+            'mis': self._send_mis_msg,
+            'miu': self._send_miu_msg,
+            'n': self._send_n_msg,
+            'fos': self._send_fos_msg,
+            'fon': self._send_fon_msg,
+            'fou': self._send_fou_msg,
+            'foc': self._send_foc_msg,
+            'hfos': self._send_hfos_msg,
+            'fcs': self._send_fcs_msg,
+            'fcn': self._send_fcn_msg,
+            'fcu': self._send_fcu_msg,
+            'fcc': self._send_fcc_msg,
+            'hfcs': self._send_hfcs_msg,
+            'fls': self._send_fls_msg,
+            'fln': self._send_fln_msg,
+            'flu': self._send_flu_msg,
+            'flc': self._send_flc_msg,
+            'hfls': self._send_hfls_msg,
+            'hfts': self._send_hfts_msg,
+            'uac': self._send_uac_msg,
+            'hb': self._heartbeat_handler
         }
         LOGGER.info(data)
         msg_type = data[1]
         if msg_type in types.keys():
             types[msg_type](data)
 
-    def _on_notification(self, message):
+    def _send_bu_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"bu message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_ps_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"ps message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_pn_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"pn message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_pu_msg(self, message):
+        if not all(message[2]):
+            return
+
+        formated_message = (
+            "<pre>"
+            f"Pair         : {message[2][0]}\n"
+            f"Amount       : {message[2][2]}\n"
+            f"Base Price   : {message[2][3]}\n"
+            f"Funding Cost : {message[2][4]}\n"
+            f"Profit/Loss  : {message[2][6]} {message[2][7]}%\n"
+            f"Liquidation  : {message[2][8]}\n"
+            f"Leverage     : {message[2][9]} "
+            "</pre>"
+        )
+        # send message to everyone who is authenticated
+        self.send_to_users(formated_message)
+
+    def _send_pc_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"pc message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_ws_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"ws message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_wu_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"wu message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_os_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"os message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_on_msg(self, message):
         order_id = message[2][0]
         order_symbol = message[2][3][1:]
         order_volume = message[2][6]
@@ -134,10 +279,26 @@ class  Bfxwss(WssClient):
             f"{plus_sign}{order_volume} @ {order_price} PLACED"
             "</pre>"
         )
-        #send message to everyone who is authenticated
+        # send message to everyone who is authenticated
         self.send_to_users(formated_message)
 
-    def _oc_notification(self, message):
+    def _send_onreq_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"onreq message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_ou_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"ou message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_oc_msg(self, message):
         order_id = message[2][0]
         order_symbol = message[2][3][1:]
         order_volume = message[2][6] if message[2][13] == "CANCELED" else message[2][7]
@@ -153,26 +314,223 @@ class  Bfxwss(WssClient):
             "</pre>"
         )
 
-        #send message to everyone who is authenticated
+        # send message to everyone who is authenticated
         self.send_to_users(formated_message)
 
-
-    def _pu_notification(self, message):
-        if not all(message[2]):
-            return
-
+    def _send_ocreq_msg(self, message):
         formated_message = (
             "<pre>"
-            f"Pair         : {message[2][0]}\n"
-            f"Amount       : {message[2][2]}\n"
-            f"Base Price   : {message[2][3]}\n"
-            f"Funding Cost : {message[2][4]}\n"
-            f"Profit/Loss  : {message[2][6]} {message[2][7]}%\n"
-            f"Liquidation  : {message[2][8]}\n"
-            f"Leverage     : {message[2][9]} "
+            f"ocreq message is : {message}"
             "</pre>"
         )
-        #send message to everyone who is authenticated
+        self.send_to_users(formated_message)
+
+    def _send_ocmultireq_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"ocmultireq message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_te_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"te message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_tu_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"tu message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_fte_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"fte message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_ftu_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"ftu message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_hos_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"hos message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_mis_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"mis message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_miu_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"miu message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_n_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"n message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_fos_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"fos message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_fon_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"fon message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_fou_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"fou message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_foc_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"foc message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_hfos_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"hfos message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_fcs_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"fcs message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_fcn_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"fcn message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_fcu_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"fcu message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_fcc_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"fcc message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_hfcs_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"hfcs message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_fls_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"fls message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_fln_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"fln message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_flu_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"flu message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_flc_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"flc message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_hfls_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"hfls message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_hfts_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"hfts message is : {message}"
+            "</pre>"
+        )
+        self.send_to_users(formated_message)
+
+    def _send_uac_msg(self, message):
+        formated_message = (
+            "<pre>"
+            f"uac message is : {message}"
+            "</pre>"
+        )
         self.send_to_users(formated_message)
 
     def reconnect(self):

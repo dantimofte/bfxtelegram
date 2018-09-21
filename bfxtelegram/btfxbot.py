@@ -52,7 +52,7 @@ class Btfxbot:
 
         updater = Updater(telegram_token)
         self.tbot = updater.bot
-        self.btfxwss = Bfxwss(self.tbot, self.send_to_users, key=btfx_key, secret=btfx_secret)
+        self.btfxwss = Bfxwss(self.send_to_users, key=btfx_key, secret=btfx_secret)
         # Get the dispatcher to register handlers
         qdp = updater.dispatcher
         # on different commands - answer in Telegram
@@ -86,7 +86,65 @@ class Btfxbot:
 
     # CALLBACK FUNCTIONS
     def cb_start(self, bot, update):
+        """
+            Callback method used to check if bot is running
+            Sends a telegramm message
+        """
         update.message.reply_text('Here be Dragons')
+
+    def cb_auth(self, bot, update, args):
+        """
+            Callback method used to authenticate to the bot
+            Sends a telegramm message
+        """
+        chat_id = update.message.chat.id
+        username = update.message.chat.username
+        first_name = update.message.chat.first_name
+        last_name = update.message.chat.last_name
+        LOGGER.info(f"{chat_id} {username} : /auth {args}")
+        if len(args) < 1:
+            self.send_help(chat_id, "auth")
+            return
+
+        botpass = args[0]
+        if chat_id in self.userdata:
+            userinfo = self.userdata[chat_id]
+        else:
+            userinfo = {"authenticated": "no", "failed_auth": 0}
+
+        # ignore user if he keeps forcing /auth
+        if userinfo['failed_auth'] > 20:
+            return
+
+        # notify user that there have been to many failed atempts
+        if userinfo['failed_auth'] > 10:
+            bot.send_message(chat_id, text="you are blocked")
+            userinfo["failed_auth"] += 1
+            self.userdata[chat_id] = userinfo
+            utils.save_userdata(self.userdata)
+            return
+
+        if botpass == self.auth_pass:
+            message = "<pre>authentication successfull </pre>"
+            bot.send_message(chat_id, text=message, parse_mode='HTML')
+            userinfo["authenticated"] = "yes"
+            userinfo["failed_auth"] = 0
+            userinfo["telegram_user"] = username
+            userinfo["telegram_name"] = f"{first_name} {last_name}"
+        else:
+            message = "<pre>bad password</pre>"
+            bot.send_message(chat_id, text=message, parse_mode='HTML')
+            userinfo["authenticated"] = "no"
+            userinfo["failed_auth"] += 1
+            userinfo["telegram_user"] = username
+            userinfo["telegram_name"] = f"{first_name} {last_name}"
+
+        self.userdata[chat_id] = userinfo
+        utils.save_userdata(self.userdata)
+
+    def cb_error(self, bot, update, boterror):
+        """Log Errors caused by Updates."""
+        LOGGER.warning(f'Update "{update}" caused error "{boterror}"')
 
     @ensure_authorized
     def cb_graph(self, bot, update, args):
@@ -164,56 +222,6 @@ class Btfxbot:
 
         message = f'<pre>option {optname} was set to {optvalue}</pre>'
         bot.send_message(chat_id, text=message, parse_mode='HTML')
-
-    def cb_auth(self, bot, update, args):
-        chat_id = update.message.chat.id
-        username = update.message.chat.username
-        first_name = update.message.chat.first_name
-        last_name = update.message.chat.last_name
-        LOGGER.info(f"{chat_id} {username} : /auth {args}")
-        if len(args) < 1:
-            self.send_help(chat_id, "auth")
-            return
-
-        botpass = args[0]
-        if chat_id in self.userdata:
-            userinfo = self.userdata[chat_id]
-        else:
-            userinfo = {"authenticated": "no", "failed_auth": 0}
-
-        # ignore user if he keeps forcing /auth
-        if userinfo['failed_auth'] > 20:
-            return
-
-        # notify user that there have been to many failed atempts
-        if userinfo['failed_auth'] > 10:
-            bot.send_message(chat_id, text="you are blocked")
-            userinfo["failed_auth"] += 1
-            self.userdata[chat_id] = userinfo
-            utils.save_userdata(self.userdata)
-            return
-
-        if botpass == self.auth_pass:
-            message = "<pre>authentication successfull </pre>"
-            bot.send_message(chat_id, text=message, parse_mode='HTML')
-            userinfo["authenticated"] = "yes"
-            userinfo["failed_auth"] = 0
-            userinfo["telegram_user"] = username
-            userinfo["telegram_name"] = f"{first_name} {last_name}"
-        else:
-            message = "<pre>bad password</pre>"
-            bot.send_message(chat_id, text=message, parse_mode='HTML')
-            userinfo["authenticated"] = "no"
-            userinfo["failed_auth"] += 1
-            userinfo["telegram_user"] = username
-            userinfo["telegram_name"] = f"{first_name} {last_name}"
-
-        self.userdata[chat_id] = userinfo
-        utils.save_userdata(self.userdata)
-
-    def cb_error(self, bot, update, boterror):
-        """Log Errors caused by Updates."""
-        LOGGER.warning(f'Update "{update}" caused error "{boterror}"')
 
     # Bitfinex Rest Methods
     @ensure_authorized
