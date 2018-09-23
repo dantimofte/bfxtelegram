@@ -8,24 +8,25 @@ Control your bitfinex account using a telegram bot
 Set-up
 ======
 
--get a telegram bot token from `botfather <https://t.me/BotFather>`_
--get api key and secret from bitfinex
--set all the environment variables from the .env-example
+get a telegram bot token from `botfather <https://t.me/BotFather>`_
 
--List of public commands for BotFather:
+get api key and secret from `bitfinex <https://www.bitfinex.com/>`_
 
-```
-start - /start : Initiate chat and check if the bot is running
-auth - /auth you_bot_password 
-graph - /graph symbol (symbol is optional, default is iotusd)
-orders - /orders (list of active orders)
-neworder - /neworder ±volume price tradepair tradetype
-set - /set option value 
-enable - /enable message_type
-disable - /disable message_type
-calc - /calc "calculation"
-help - /help "command"
-```
+set all the environment variables from the `.env-example <https://github.com/dantimofte/bfxtelegram/blob/master/.env-example>`_
+
+List of public commands for BotFather:
+:: 
+
+  start - /start : Initiate chat and check if the bot is running
+  auth - /auth you_bot_password 
+  graph - /graph symbol (symbol is optional, default is iotusd)
+  orders - /orders (list of active orders)
+  neworder - /neworder ±volume price tradepair tradetype
+  set - /set option value 
+  enable - /enable message_type
+  disable - /disable message_type
+  calc - /calc "calculation"
+  help - /help "command"
 
 =============
 Documentation
