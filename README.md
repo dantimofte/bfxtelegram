@@ -3,7 +3,7 @@ Control your bitfinex account using a telegram bot
 
 ## Set-up
 
-	get a telegram bot token from botfather https://t.me/BotFather
+	get a telegram bot token from `botfather <https://t.me/BotFather>`_
 	get api key and secret from bitfinex
 	set all the environment variables from the .env-example
 
@@ -13,13 +13,9 @@ Control your bitfinex account using a telegram bot
 	orders - /orders (list of active orders)
 	neworder - /neworder ±volume price tradepair tradetype
 	graph - /graph symbol (symbol is optional, default is iotusd)
-	option - /option option_name value 
+	set - /set option value 
 	calc - /calc "calculation"
 	help - /help "command"
 
-## 
-	available option names and values are : 
-
-	defaultpair "symbol" (ex: iotbtc, ethusd, btcusd, ...)
-	graphtheme "theme" (themes : standard, colorblind, monochrome)
-	calctype "type" (types : position_SYMBOL, margin_sym_SYMBOL)
+## Documentation
+	Please check the `wiki <https://github.com/dantimofte/bfxtelegram/wiki>`_

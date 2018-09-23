@@ -50,14 +50,14 @@ REST_TYPES = {
 }
 
 CMDHELP = {
-    "option": (
+    "set": (
         "<pre>"
-        "/option defaultpair symbol\n"
+        "/set defaultpair symbol\n"
         "  symbols : iotusd, btcusd, ltcusd, ethusd\n"
-        "/option graphtheme theme\n"
+        "/set graphtheme theme\n"
         "  themes : standard, colorblind, monochrome\n"
-        "/option calctype type\n"
-        "  ex : /option calctype position_tIOTUSD\n"
+        "/set calctype type\n"
+        "  ex : /set calctype position_tIOTUSD\n"
         "</pre>"
     ),
     "auth": (
@@ -87,12 +87,20 @@ CMDHELP = {
 }
 
 
+WS_MSG_TYPES = [
+    'bu', 'ps', 'pn', 'pu', 'pc', 'ws', 'wu', 'os', 'on', 'on-req', 'ou', 'oc', 'oc-req',
+    'oc_multi-req', 'te', 'tu', 'fte', 'ftu', 'hos', 'mis', 'miu', 'n', 'fos', 'fon', 'fou', 'foc',
+    'hfos', 'fcs', 'fcn', 'fcu', 'fcc', 'hfcs', 'fls', 'fln', 'flu', 'flc', 'hfls', 'hfts', 'hb',
+    'uca'
+]
+
+
 def isnumber(pnumber):
     num_format = re.compile(r"^[\-]?[0-9]*\.?[0-9]*$")
     if re.match(num_format, pnumber):
         return True
-    else:
-        return False
+
+    return False
 
 
 def ensure_dir(file_path):

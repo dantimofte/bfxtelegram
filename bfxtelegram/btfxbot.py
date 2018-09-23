@@ -57,9 +57,11 @@ class Btfxbot:
         qdp = updater.dispatcher
         # on different commands - answer in Telegram
         qdp.add_handler(CommandHandler("start", self.cb_start))
-        qdp.add_handler(CommandHandler("graph", self.cb_graph, pass_args=True))
         qdp.add_handler(CommandHandler("auth", self.cb_auth, pass_args=True))
-        qdp.add_handler(CommandHandler("option", self.cb_option, pass_args=True))
+        qdp.add_handler(CommandHandler("graph", self.cb_graph, pass_args=True))
+        qdp.add_handler(CommandHandler("set", self.cb_set, pass_args=True))
+        qdp.add_handler(CommandHandler("enable", self.cb_enable, pass_args=True))
+        qdp.add_handler(CommandHandler("disable", self.cb_disable, pass_args=True))
         qdp.add_handler(CommandHandler("neworder", self.cb_new_order, pass_args=True))
         qdp.add_handler(CommandHandler("orders", self.cb_orders, pass_args=True))
         qdp.add_handler(CommandHandler("calc", self.cb_calc, pass_args=True))
@@ -110,7 +112,12 @@ class Btfxbot:
         if chat_id in self.userdata:
             userinfo = self.userdata[chat_id]
         else:
-            userinfo = {"authenticated": "no", "failed_auth": 0}
+            # these are the default setting for new users
+            userinfo = {
+                "authenticated": "no",
+                "failed_auth": 0,
+                "disabled_ws_message": ["fcs", "fos", "os", "ws", "ps", "fls", "fcu"]
+            }
 
         # ignore user if he keeps forcing /auth
         if userinfo['failed_auth'] > 20:
@@ -148,14 +155,21 @@ class Btfxbot:
 
     @ensure_authorized
     def cb_graph(self, bot, update, args):
+        """
+            Callback method used to requests charts from the bot
+            Sends picture to telegramm
+        """
         LOGGER.info(f"{update.message.chat.username} : /graph {args}")
         chat_id = update.message.chat.id
 
+        if len(args) < 1 and 'defaultpair' not in self.userdata[chat_id]:
+            self.send_help(chat_id, "graph")
+            return
+
         if 'defaultpair' in self.userdata[chat_id]:
-            defaultpair = self.userdata[chat_id]['defaultpair']
-        else:
-            defaultpair = "iotusd"
-        symbol = args[0] if args else defaultpair
+            default_pair = self.userdata[chat_id]['defaultpair']
+
+        symbol = args[0] if args else default_pair
 
         if symbol not in self.btfx_symbols:
             symbols = " ".join(self.btfx_symbols)
@@ -169,7 +183,7 @@ class Btfxbot:
         candles_data = self.btfx_client2.candles("1h", tradepair, "hist", limit='120')
         active_orders = self.btfx_client.active_orders()
         order_book = self.btfx_client.order_book(
-            "iotusd",
+            symbol,
             parameters={"limit_bids": 800, "limit_asks": 800}
         )
 
@@ -185,51 +199,103 @@ class Btfxbot:
         del newgraph
 
     @ensure_authorized
-    def cb_option(self, bot, update, args):
-        LOGGER.info(f"{update.message.chat.username} : /option {args}")
+    def cb_set(self, bot, update, args):
+        """
+        set default options
+        """
+        LOGGER.info(f"{update.message.chat.username} : /set {args}")
         chat_id = update.message.chat.id
 
         if len(args) < 2:
-            self.send_help(chat_id, "option")
+            self.send_help(chat_id, "set")
             return
 
-        optname = args[0]
-        optvalue = args[1]
-        valid_options = ['defaultpair', 'graphtheme', 'calctype']
-        if optname not in valid_options:
-            str_options = " ".join(valid_options)
+        name = args[0]
+        value = args[1]
+        valid_settings = ['defaultpair', 'graphtheme', 'calctype']
+        if name not in valid_settings:
+            str_settings = " ".join(valid_settings)
             formated_message = (
                 "<pre>"
-                f"{optname} is not a valid option\n"
-                f"valid options are {str_options}\n"
+                f"{name} is not a valid setting\n"
+                f"valid settings are {str_settings}\n"
                 "</pre>"
             )
             bot.send_message(chat_id, text=formated_message, parse_mode='HTML')
             return
 
-        if optname == "defaultpair" and optvalue not in self.btfx_symbols:
+        if name == "defaultpair" and value not in self.btfx_symbols:
             msgtext = f"incorect symbol , available pairs are {self.btfx_symbols}"
             bot.send_message(chat_id, text=msgtext, parse_mode='HTML')
             return
 
-        if optname == "graphtheme" and optvalue not in ['standard', 'colorblind', 'monochrome']:
+        if name == "graphtheme" and value not in ['standard', 'colorblind', 'monochrome']:
             msgtext = f"incorect theme , available themes are standard, colorblind, monochrome"
             bot.send_message(chat_id, text=msgtext, parse_mode='HTML')
             return
 
-        self.userdata[chat_id][optname] = optvalue
+        self.userdata[chat_id][name] = value
         utils.save_userdata(self.userdata)
 
-        message = f'<pre>option {optname} was set to {optvalue}</pre>'
+        message = f'<pre>{name} was set to {value}</pre>'
         bot.send_message(chat_id, text=message, parse_mode='HTML')
 
-    # Bitfinex Rest Methods
+    @ensure_authorized
+    def cb_enable(self, bot, update, args):
+        LOGGER.info(f"{update.message.chat.username} : /enable {args}")
+        chat_id = update.message.chat.id
+        userinfo = self.userdata[chat_id]
+        if len(args) < 1:
+            self.send_help(chat_id, "enable")
+            return
+
+        msg_type = args[0]
+        if msg_type not in utils.WS_MSG_TYPES:
+            types = " ".join(utils.WS_MSG_TYPES)
+            message = f"<pre> msg_type is invalid, valid types are {types} </pre>"
+            bot.send_message(chat_id, text=message, parse_mode='HTML')
+            return
+        userinfo["disabled_ws_message"].remove(msg_type)
+        types = " ".join(userinfo["disabled_ws_message"])
+
+        message = f"<pre>Done, disabled messages are : {types}</pre>"
+        bot.send_message(chat_id, text=message, parse_mode='HTML')
+
+        self.userdata[chat_id] = userinfo
+        utils.save_userdata(self.userdata)
+
+    @ensure_authorized
+    def cb_disable(self, bot, update, args):
+        LOGGER.info(f"{update.message.chat.username} : /disable {args}")
+        chat_id = update.message.chat.id
+        userinfo = self.userdata[chat_id]
+        if len(args) < 1:
+            self.send_help(chat_id, "disable")
+            return
+
+        msg_type = args[0]
+        if msg_type not in utils.WS_MSG_TYPES:
+            types = " ".join(utils.WS_MSG_TYPES)
+            message = f"<pre> msg_type is invalid, valid types are {types} </pre>"
+            bot.send_message(chat_id, text=message, parse_mode='HTML')
+            return
+        if msg_type not in userinfo["disabled_ws_message"]:
+            userinfo["disabled_ws_message"].append(msg_type)
+
+        types = " ".join(userinfo["disabled_ws_message"])
+
+        message = f"<pre>Done, disabled messages are : {types}</pre>"
+        bot.send_message(chat_id, text=message, parse_mode='HTML')
+
+        self.userdata[chat_id] = userinfo
+        utils.save_userdata(self.userdata)
+
     @ensure_authorized
     def cb_new_order(self, bot, update, args):
         LOGGER.info(f"{update.message.chat.username} : /neworder {args}")
         chat_id = update.message.chat.id
 
-        # Verify order parameters
+        # Verify parameters
         if len(args) < 4:
             self.send_help(chat_id, "neworder")
             return
@@ -329,12 +395,9 @@ class Btfxbot:
 
     def cb_btn_orders(self, bot, update):
         query = update.callback_query
-        update.callback_query.answer()
+        update.callback_query.answer()  # forgot what this is for
         chat_id = update.callback_query.message.chat.id
-        LOGGER.info(f"i got {query.data} from {chat_id}")
-
         orders_type = query.data.split(':')[1]
-        LOGGER.info(f"orders_type : {orders_type}")
 
         active_orders = self.btfx_client.active_orders()
         if orders_type == "margin":
@@ -362,8 +425,8 @@ class Btfxbot:
             try:
                 bot.send_message(chat_id, text=formated_message, reply_markup=keyboard)
             except (TimedOut, TelegramError) as error:
-                print(f"could not send message {formated_message} to {chat_id}")
-                print(error)
+                LOGGER.error(f"could not send message {formated_message} to {chat_id}")
+                LOGGER.error(error)
 
     def cb_btn_cancel_order(self, bot, update):
         query = update.callback_query
@@ -380,13 +443,15 @@ class Btfxbot:
 
         LOGGER.info(f"del_order : {del_order}")
 
-    def send_to_users(self, message):
-        for key, value in self.userdata.items():
-            if value['authenticated'] == "yes":
+    def send_to_users(self, mtype, message):
+        for user_id, user_data in self.userdata.items():
+            if mtype in user_data["disabled_ws_message"]:
+                continue
+            if user_data['authenticated'] == "yes":
                 try:
-                    self.tbot.send_message(key, text=message, parse_mode='HTML')
+                    self.tbot.send_message(user_id, text=message, parse_mode='HTML')
                 except (TimedOut, TelegramError):
-                    LOGGER.error(f"coult not send message to {key}")
+                    LOGGER.error(f"coult not send message to {user_id}")
 
     def send_help(self, chat_id, help_key):
         helps = " ".join(utils.CMDHELP.keys())
