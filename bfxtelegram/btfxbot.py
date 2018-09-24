@@ -5,8 +5,8 @@ Module Docstring
 
 import logging
 # telegram libraries
-from telegram.ext import Updater
-from telegram.ext import CallbackQueryHandler, CommandHandler
+from telegram.ext import Updater, Filters
+from telegram.ext import CallbackQueryHandler, CommandHandler, MessageHandler, ConversationHandler
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import (TelegramError, TimedOut)
 # bitfinex libraries
@@ -21,6 +21,9 @@ from bfxtelegram.tgraph import Tgraph
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.DEBUG)
 LOGGER = logging.getLogger(__name__)
+
+UPDPRICE = 0
+UPDVOLUME = 0
 
 
 def ensure_authorized(passed_function):
@@ -66,6 +69,38 @@ class Btfxbot:
         qdp.add_handler(CommandHandler("orders", self.cb_orders, pass_args=True))
         qdp.add_handler(CommandHandler("calc", self.cb_calc, pass_args=True))
         qdp.add_handler(CommandHandler("help", self.cb_help, pass_args=True))
+
+
+        # Add conversation handler with the states GENDER, PHOTO, LOCATION and BIO
+
+        update_volume_handler = CallbackQueryHandler(
+            self.cb_btn_update_volume,
+            pattern=r'^update_volume:[0-9]+$',
+            pass_user_data=True
+        )
+        new_volume_handler = MessageHandler(Filters.text, self.cb_new_volume, pass_user_data=True)
+        upvh = ConversationHandler(
+            entry_points=[update_volume_handler],
+            states={UPDVOLUME: [new_volume_handler]},
+            fallbacks=[CommandHandler('cancel', self.cb_cancel)]
+        )
+        qdp.add_handler(upvh)
+
+        update_price_handler = CallbackQueryHandler(
+            self.cb_btn_update_price,
+            pattern=r'^update_price:[0-9]+$',
+            pass_user_data=True
+        )
+        new_price_handler = MessageHandler(Filters.text, self.cb_new_price, pass_user_data=True)
+
+        upch = ConversationHandler(
+            entry_points=[update_price_handler],
+            states={UPDPRICE: [new_price_handler]},
+            fallbacks=[CommandHandler('cancel', self.cb_cancel)]
+        )
+
+        qdp.add_handler(upch)
+
         qdp.add_handler(CallbackQueryHandler(
             self.cb_btn_cancel_order,
             pattern=r'^cancel_order:[0-9]+$'
@@ -338,15 +373,15 @@ class Btfxbot:
             bot.send_message(chat_id, text=neworder['message'])
             return
 
-        orderid = neworder['id']
+        order_id = neworder['id']
         buttons = [
-            # InlineKeyboardButton('Update Price', callback_data=f"neworder:updprice:{orderid}"),
-            # InlineKeyboardButton('Update Volume', callback_data=f"neworder:updvolume:{orderid}"),
-            InlineKeyboardButton('Cancel order', callback_data=f"cancel_order:{orderid}")
+            InlineKeyboardButton('Update Price', callback_data=f"update_price:{order_id}"),
+            InlineKeyboardButton('Update Volume', callback_data=f"update_volume:{order_id}"),
+            InlineKeyboardButton('Cancel order', callback_data=f"cancel_order:{order_id}")
         ]
         keyboard = InlineKeyboardMarkup([buttons])
 
-        formated_message = f"Order {orderid} placed succesfully\n"
+        formated_message = f"Order {order_id} placed succesfully\n"
 
         try:
             update.message.reply_text(formated_message, reply_markup=keyboard)
@@ -413,20 +448,101 @@ class Btfxbot:
             order_id = order['id']
             symbol = order['symbol']
             side = order['side']
+            sign = "-" if side == "sell" else ""
             original_amount = order['original_amount']
             remaining_amount = order['remaining_amount']
             price = order['price']
             formated_message = (
                 f"{order_id}: {symbol} {side} {remaining_amount}@{price} "
-                f"original amount : {original_amount}"
+                f"original amount : {sign}{original_amount}"
             )
-            buttons = [InlineKeyboardButton('cancel', callback_data=f'cancel_order:{order_id}')]
+            buttons = [
+                InlineKeyboardButton('Update Price', callback_data=f"update_price:{order_id}"),
+                InlineKeyboardButton('Update Volume', callback_data=f"update_volume:{order_id}"),
+                InlineKeyboardButton('Cancel order', callback_data=f"cancel_order:{order_id}")
+            ]
             keyboard = InlineKeyboardMarkup([buttons])
             try:
                 bot.send_message(chat_id, text=formated_message, reply_markup=keyboard)
             except (TimedOut, TelegramError) as error:
                 LOGGER.error(f"could not send message {formated_message} to {chat_id}")
                 LOGGER.error(error)
+
+    def cb_btn_update_volume(self, bot, update, user_data):
+        query = update.callback_query
+        update.callback_query.answer()
+        print(f"UPDATING VOLUME ")
+        chat_id = update.callback_query.message.chat.id
+        LOGGER.info(f"i got {query.data} from {chat_id}")
+
+        order_id = int(query.data.split(':')[1])
+        LOGGER.info(f"orderid : {order_id}")
+        bot.send_message(chat_id, text="Please send me the new volume or tap : /cancel")
+        user_data['update_volume_order_id'] = order_id
+        return UPDVOLUME
+
+    def cb_btn_update_price(self, bot, update, user_data):
+        query = update.callback_query
+        update.callback_query.answer()
+        print(f"UPDATING PRICE : ")
+        chat_id = update.callback_query.message.chat.id
+        LOGGER.info(f"i got {query.data} from {chat_id}")
+
+        order_id = int(query.data.split(':')[1])
+        LOGGER.info(f"orderid : {order_id}")
+        bot.send_message(chat_id, text="Please send me the new price or tap : /cancel")
+        user_data['update_price_order_id'] = order_id
+        return UPDPRICE
+
+    def cb_new_price(self, bot, update, user_data):
+        LOGGER.info("cb_new_price called")
+        chat_id = update.message.chat.id
+        response = update.message.text
+        if not utils.isnumber(response):
+            LOGGER.info("cb_new_price not a number")
+            message = (
+                f"{response} is not a valid number\n"
+                "Please send me a valid number or tap /cancel"
+            )
+            update.message.reply_text(message, parse_mode='HTML')
+            return None
+        else:
+            bot.sendChatAction(chat_id, "TYPING")
+            self.btfxwss.update_order(
+                id=user_data['update_price_order_id'],
+                price=response
+            )
+            print("cb_new_price received valid number : %s" % response)
+            return ConversationHandler.END
+
+    def cb_new_volume(self, bot, update, user_data):
+        LOGGER.info("cb_new_volume called")
+        chat_id = update.message.chat.id
+        response = update.message.text
+        if not utils.isnumber(response):
+            message = (
+                f"{response} is not a valid number\n"
+                "Please send me a valid number or tap /cancel"
+            )
+            bot.send_message(chat_id, text=message)
+            return None
+        else:
+            bot.sendChatAction(chat_id, "TYPING")
+            self.btfxwss.update_order(
+                id=user_data['update_volume_order_id'],
+                amount=response
+            )
+            print("cb_new_price received valid number : %s" % response)
+            return ConversationHandler.END
+
+        print("cb_new_volume received text : %s" % response)
+        return ConversationHandler.END
+
+    def cb_cancel(self, bot, update):
+        user = update.message.from_user
+        LOGGER.info("User %s canceled the conversation.", user.first_name)
+        update.message.reply_text('Bye! I hope we can talk again some day.')
+        return ConversationHandler.END
 
     def cb_btn_cancel_order(self, bot, update):
         query = update.callback_query
