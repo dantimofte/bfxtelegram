@@ -14,6 +14,50 @@ LOGGER = logging.getLogger(__name__)
 
 class Bfxwss(WssClient):
     def __init__(self, send_to_users, key="", secret=""):
+        self.msg_type_func = {
+            'bu': self._send_bu_msg,
+            'ps': self._send_ps_msg,
+            'pn': self._send_pn_msg,
+            'pu': self._send_pu_msg,
+            'pc': self._send_pc_msg,
+            'ws': self._send_ws_msg,
+            'wu': self._send_wu_msg,
+            'os': self._send_os_msg,
+            'on': self._send_on_msg,
+            'on-req': self._send_onreq_msg,
+            'ou': self._send_ou_msg,
+            'oc': self._send_oc_msg,
+            'oc-req': self._send_ocreq_msg,
+            'oc_multi-req': self._send_ocmultireq_msg,
+            'te': self._send_te_msg,
+            'tu': self._send_tu_msg,
+            'fte': self._send_fte_msg,
+            'ftu': self._send_ftu_msg,
+            'hos': self._send_hos_msg,
+            'mis': self._send_mis_msg,
+            'miu': self._send_miu_msg,
+            'n': self._send_n_msg,
+            'fos': self._send_fos_msg,
+            'fon': self._send_fon_msg,
+            'fou': self._send_fou_msg,
+            'foc': self._send_foc_msg,
+            'hfos': self._send_hfos_msg,
+            'fcs': self._send_fcs_msg,
+            'fcn': self._send_fcn_msg,
+            'fcu': self._send_fcu_msg,
+            'fcc': self._send_fcc_msg,
+            'hfcs': self._send_hfcs_msg,
+            'fls': self._send_fls_msg,
+            'fln': self._send_fln_msg,
+            'flu': self._send_flu_msg,
+            'flc': self._send_flc_msg,
+            'hfls': self._send_hfls_msg,
+            'hfts': self._send_hfts_msg,
+            'hb': self._heartbeat_handler,
+            'ou-req': self._send_oureq_msg,
+            'wallet_transfer': self._send_wallettransfer_msg
+        }
+
         super().__init__(key=key, secret=secret)
         self.send_to_users = send_to_users
         self.connection_timer = None
@@ -143,52 +187,10 @@ class Bfxwss(WssClient):
             uac          : user custom price alert
         """
         LOGGER.debug(f"_data_handler(): Passing {data} to client..")
-
-        types = {
-            'bu': self._send_bu_msg,
-            'ps': self._send_ps_msg,
-            'pn': self._send_pn_msg,
-            'pu': self._send_pu_msg,
-            'pc': self._send_pc_msg,
-            'ws': self._send_ws_msg,
-            'wu': self._send_wu_msg,
-            'os': self._send_os_msg,
-            'on': self._send_on_msg,
-            'on-req': self._send_onreq_msg,
-            'ou': self._send_ou_msg,
-            'oc': self._send_oc_msg,
-            'oc-req': self._send_ocreq_msg,
-            'oc_multi-req': self._send_ocmultireq_msg,
-            'te': self._send_te_msg,
-            'tu': self._send_tu_msg,
-            'fte': self._send_fte_msg,
-            'ftu': self._send_ftu_msg,
-            'hos': self._send_hos_msg,
-            'mis': self._send_mis_msg,
-            'miu': self._send_miu_msg,
-            'n': self._send_n_msg,
-            'fos': self._send_fos_msg,
-            'fon': self._send_fon_msg,
-            'fou': self._send_fou_msg,
-            'foc': self._send_foc_msg,
-            'hfos': self._send_hfos_msg,
-            'fcs': self._send_fcs_msg,
-            'fcn': self._send_fcn_msg,
-            'fcu': self._send_fcu_msg,
-            'fcc': self._send_fcc_msg,
-            'hfcs': self._send_hfcs_msg,
-            'fls': self._send_fls_msg,
-            'fln': self._send_fln_msg,
-            'flu': self._send_flu_msg,
-            'flc': self._send_flc_msg,
-            'hfls': self._send_hfls_msg,
-            'hfts': self._send_hfts_msg,
-            'hb': self._heartbeat_handler
-        }
         LOGGER.info(data)
         msg_type = data[1]
-        if msg_type in types.keys():
-            types[msg_type](msg_type, data)
+        if msg_type in self.msg_type_func.keys():
+            self.msg_type_func[msg_type](msg_type, data)
 
     def _send_bu_msg(self, msg_type, message):
         formated_message = (
@@ -249,9 +251,13 @@ class Bfxwss(WssClient):
         self.send_to_users(msg_type, formated_message)
 
     def _send_wu_msg(self, msg_type, message):
+        wtype = message[2][0]
+        coin = message[2][1]
+        balance = message[2][2]
         formated_message = (
             "<pre>"
-            f"{msg_type} message is : {message}"
+            f"{msg_type} msg\n"
+            f"{coin} {wtype} wallet updated,  new balance is {balance}"
             "</pre>"
         )
         self.send_to_users(msg_type, formated_message)
@@ -274,6 +280,7 @@ class Bfxwss(WssClient):
 
         formated_message = (
             "<pre>"
+            f"{msg_type} msg\n"
             f"Order {order_id} {order_symbol} {order_type} "
             f"{plus_sign}{order_volume} @ {order_price} PLACED"
             "</pre>"
@@ -284,15 +291,25 @@ class Bfxwss(WssClient):
     def _send_onreq_msg(self, msg_type, message):
         formated_message = (
             "<pre>"
-            f"{msg_type} message is : {message}"
+            f"{msg_type} msg\n"
+            f"{message[2][7]}"
             "</pre>"
         )
         self.send_to_users(msg_type, formated_message)
 
     def _send_ou_msg(self, msg_type, message):
+        order_id = message[2][0]
+        order_symbol = message[2][3][1:]
+        order_volume = message[2][6]
+        order_type = message[2][8]
+        order_price = message[2][16]
+        plus_sign = "+" if order_volume > 0 else ""
+
         formated_message = (
             "<pre>"
-            f"{msg_type} message is : {message}"
+            f"{msg_type} msg\n"
+            f"Order {order_id} updated : {order_symbol} {order_type} "
+            f"{plus_sign}{order_volume} @ {order_price}"
             "</pre>"
         )
         self.send_to_users(msg_type, formated_message)
@@ -308,6 +325,7 @@ class Bfxwss(WssClient):
 
         formated_message = (
             "<pre>"
+            f"{msg_type} msg\n"
             f"Order {order_id} {order_symbol} {order_type} "
             f"{plus_sign}{order_volume} @ {order_price} was {order_status}"
             "</pre>"
@@ -319,7 +337,8 @@ class Bfxwss(WssClient):
     def _send_ocreq_msg(self, msg_type, message):
         formated_message = (
             "<pre>"
-            f"{msg_type} message is : {message}"
+            f"{msg_type} msg\n"
+            f"{message[2][7]}"
             "</pre>"
         )
         self.send_to_users(msg_type, formated_message)
@@ -389,9 +408,9 @@ class Bfxwss(WssClient):
         self.send_to_users(msg_type, formated_message)
 
     def _send_n_msg(self, msg_type, message):
-        notification_type = message[2][1]
-        if notification_type == "uca":
-            self._send_uca_msg("uca", message[2][4])
+        new_type = message[2][1]
+        if new_type in self.msg_type_func:
+            self.msg_type_func[new_type](new_type, message)
         else:
             formated_message = (
                 "<pre>"
@@ -530,12 +549,30 @@ class Bfxwss(WssClient):
 
     def _send_uca_msg(self, msg_type, message):
         print(f"uca is {message}")
+        message = message[2][4]
         direction = "under" if message[5] < 0 else "above"
         expires = message[4]
         price = message[3]
         pair = message[2][1:]
         formated_message = f"<pre>{pair} went {direction} {price} alert expires in {expires}</pre>"
+        self.send_to_users(msg_type, formated_message)
 
+    def _send_oureq_msg(self, msg_type, message):
+        formated_message = (
+            "<pre>"
+            f"{msg_type} msg\n"
+            f"{message[2][7]}"
+            "</pre>"
+        )
+        self.send_to_users(msg_type, formated_message)
+
+    def _send_wallettransfer_msg(self, msg_type, message):
+        formated_message = (
+            "<pre>"
+            f"{msg_type} msg\n"
+            f"{message[2][7]}"
+            "</pre>"
+        )
         self.send_to_users(msg_type, formated_message)
 
     def reconnect(self):

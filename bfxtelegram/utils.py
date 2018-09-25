@@ -91,7 +91,7 @@ WS_MSG_TYPES = [
     'bu', 'ps', 'pn', 'pu', 'pc', 'ws', 'wu', 'os', 'on', 'on-req', 'ou', 'oc', 'oc-req',
     'oc_multi-req', 'te', 'tu', 'fte', 'ftu', 'hos', 'mis', 'miu', 'n', 'fos', 'fon', 'fou', 'foc',
     'hfos', 'fcs', 'fcn', 'fcu', 'fcc', 'hfcs', 'fls', 'fln', 'flu', 'flc', 'hfls', 'hfts', 'hb',
-    'uca'
+    'uca', 'ou-req', 'wallet_transfer'
 ]
 
 
