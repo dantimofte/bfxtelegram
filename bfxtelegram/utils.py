@@ -83,6 +83,13 @@ CMDHELP = {
         "    wallet_WALLET-TYPE_CURRENCY\n"
         "Or specify a default calculation using /option"
         "</pre>"
+    ),
+    "newalert": (
+        "<pre>"
+        "New Alert is placed like this : \n"
+        "/neworder symbol price\n"
+        "/neworder iotusd 4.00"
+        "</pre>"
     )
 }
 

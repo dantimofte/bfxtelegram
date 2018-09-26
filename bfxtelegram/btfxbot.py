@@ -66,9 +66,10 @@ class Btfxbot:
         qdp.add_handler(CommandHandler("enable", self.cb_enable, pass_args=True))
         qdp.add_handler(CommandHandler("disable", self.cb_disable, pass_args=True))
         qdp.add_handler(CommandHandler("neworder", self.cb_new_order, pass_args=True))
-        qdp.add_handler(CommandHandler("orders", self.cb_orders, pass_args=True))
-        qdp.add_handler(CommandHandler("calc", self.cb_calc, pass_args=True))
-        qdp.add_handler(CommandHandler("help", self.cb_help, pass_args=True))
+        qdp.add_handler(CommandHandler("newalert", self._cb_new_alert, pass_args=True))
+        qdp.add_handler(CommandHandler("orders", self._cb_orders, pass_args=True))
+        qdp.add_handler(CommandHandler("calc", self._cb_calc, pass_args=True))
+        qdp.add_handler(CommandHandler("help", self._cb_help, pass_args=True))
 
 
         # Add conversation handler with the states GENDER, PHOTO, LOCATION and BIO
@@ -390,7 +391,39 @@ class Btfxbot:
             LOGGER.info(error)
 
     @ensure_authorized
-    def cb_calc(self, bot, update, args):
+    def _cb_new_alert(self, bot, update, args):
+        """
+            Set a price alert for a tradepair
+            All price alerts expire after they get triggered 100 times
+            /newalert iotusd 0.55
+        """
+        LOGGER.info(f"{update.message.chat.username} : /newalert {args}")
+        chat_id = update.message.chat.id
+
+        # Verify parameters
+        if len(args) < 2:
+            self.send_help(chat_id, "newalert")
+            return
+        tradepair = args[0]
+        price = args[1]
+
+        if tradepair not in self.btfx_symbols:
+            msgtext = f"incorect tradepair , available pairs are {self.btfx_symbols}"
+            bot.send_message(chat_id, text=msgtext, parse_mode='HTML')
+            return
+
+        if not utils.isnumber(price):
+            bot.send_message(chat_id, text=f"incorect price , {price} is not a number")
+            return
+
+        tradepair = f"t{tradepair.upper()}"
+        response = self.btfx_client2.alert_set('price', tradepair, float(price))
+        if response[4] == 100:
+            msgtext = "<pre> Alert Set Succesfully </pre>"
+            bot.send_message(chat_id, text=msgtext, parse_mode='HTML')
+
+    @ensure_authorized
+    def _cb_calc(self, bot, update, args):
         LOGGER.info(f"{update.message.chat.username} : /calc {args}")
         chat_id = update.message.chat.id
 
@@ -405,7 +438,10 @@ class Btfxbot:
         self.btfxwss.calc([calctype])
 
     @ensure_authorized
-    def cb_orders(self, bot, update, args):
+    def _cb_orders(self, bot, update, args):
+        """
+            List of orders
+        """
         LOGGER.info(f"{update.message.chat.username} : /orders {args}")
         chat_id = update.message.chat.id
 
@@ -422,7 +458,7 @@ class Btfxbot:
             print(error)
 
     @ensure_authorized
-    def cb_help(self, bot, update, args):
+    def _cb_help(self, bot, update, args):
         LOGGER.info(f"{update.message.chat.username} : /help {args}")
         chat_id = update.message.chat.id
         help_key = args[0] if args else "none"
@@ -506,14 +542,14 @@ class Btfxbot:
             )
             update.message.reply_text(message, parse_mode='HTML')
             return None
-        else:
-            bot.sendChatAction(chat_id, "TYPING")
-            self.btfxwss.update_order(
-                id=user_data['update_price_order_id'],
-                price=response
-            )
-            print("cb_new_price received valid number : %s" % response)
-            return ConversationHandler.END
+
+        bot.sendChatAction(chat_id, "TYPING")
+        self.btfxwss.update_order(
+            id=user_data['update_price_order_id'],
+            price=response
+        )
+        print("cb_new_price received valid number : %s" % response)
+        return ConversationHandler.END
 
     def cb_new_volume(self, bot, update, user_data):
         LOGGER.info("cb_new_volume called")
@@ -526,14 +562,14 @@ class Btfxbot:
             )
             bot.send_message(chat_id, text=message)
             return None
-        else:
-            bot.sendChatAction(chat_id, "TYPING")
-            self.btfxwss.update_order(
-                id=user_data['update_volume_order_id'],
-                amount=response
-            )
-            print("cb_new_price received valid number : %s" % response)
-            return ConversationHandler.END
+
+        bot.sendChatAction(chat_id, "TYPING")
+        self.btfxwss.update_order(
+            id=user_data['update_volume_order_id'],
+            amount=response
+        )
+        print("cb_new_price received valid number : %s" % response)
+        return ConversationHandler.END
 
         print("cb_new_volume received text : %s" % response)
         return ConversationHandler.END

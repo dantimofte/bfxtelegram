@@ -22,7 +22,8 @@ List of public commands for BotFather:
   graph - /graph symbol (symbol is optional, default is iotusd)
   orders - /orders (list of active orders)
   neworder - /neworder ±volume price tradepair tradetype
-  set - /set option value 
+  newalert - /newalert tradepair price
+  set - /set option value
   enable - /enable message_type
   disable - /disable message_type
   calc - /calc "calculation"
