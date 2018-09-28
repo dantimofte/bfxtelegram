@@ -52,6 +52,7 @@ class Btfxbot:
         self.btfx_client = Client(btfx_key, btfx_secret)
         self.btfx_client2 = Client2(btfx_key, btfx_secret)
         self.btfx_symbols = self.btfx_client.symbols()
+        self.currencies = utils.get_currencies(self.btfx_symbols)
 
         updater = Updater(telegram_token)
         self.tbot = updater.bot
@@ -62,7 +63,8 @@ class Btfxbot:
         qdp.add_handler(CommandHandler("start", self.cb_start))
         qdp.add_handler(CommandHandler("auth", self.cb_auth, pass_args=True))
         qdp.add_handler(CommandHandler("graph", self.cb_graph, pass_args=True))
-        qdp.add_handler(CommandHandler("set", self.cb_set, pass_args=True))
+        qdp.add_handler(CommandHandler("set", self._cb_set, pass_args=True))
+        qdp.add_handler(CommandHandler("getbalance", self._cb_get_balance, pass_args=True))
         qdp.add_handler(CommandHandler("enable", self.cb_enable, pass_args=True))
         qdp.add_handler(CommandHandler("disable", self.cb_disable, pass_args=True))
         qdp.add_handler(CommandHandler("neworder", self.cb_new_order, pass_args=True))
@@ -70,9 +72,6 @@ class Btfxbot:
         qdp.add_handler(CommandHandler("orders", self._cb_orders, pass_args=True))
         qdp.add_handler(CommandHandler("calc", self._cb_calc, pass_args=True))
         qdp.add_handler(CommandHandler("help", self._cb_help, pass_args=True))
-
-
-        # Add conversation handler with the states GENDER, PHOTO, LOCATION and BIO
 
         update_volume_handler = CallbackQueryHandler(
             self.cb_btn_update_volume,
@@ -152,7 +151,8 @@ class Btfxbot:
             userinfo = {
                 "authenticated": "no",
                 "failed_auth": 0,
-                "disabled_ws_message": ["fcs", "fos", "os", "ws", "ps", "fls", "fcu"]
+                "disabled_ws_message": ["fcs", "fos", "os", "ws", "ps", "fls", "fcu"],
+                "getbalance": ["iot", "usd", "btc"]
             }
 
         # ignore user if he keeps forcing /auth
@@ -235,7 +235,7 @@ class Btfxbot:
         del newgraph
 
     @ensure_authorized
-    def cb_set(self, bot, update, args):
+    def _cb_set(self, bot, update, args):
         """
         set default options
         """
@@ -248,7 +248,7 @@ class Btfxbot:
 
         name = args[0]
         value = args[1]
-        valid_settings = ['defaultpair', 'graphtheme', 'calctype']
+        valid_settings = ['defaultpair', 'graphtheme', 'calctype', "getbalance"]
         if name not in valid_settings:
             str_settings = " ".join(valid_settings)
             formated_message = (
@@ -269,6 +269,16 @@ class Btfxbot:
             msgtext = f"incorect theme , available themes are standard, colorblind, monochrome"
             bot.send_message(chat_id, text=msgtext, parse_mode='HTML')
             return
+
+        if name == "getbalance":
+            curr_list = []
+            for iterator in range(1, len(args)):
+                if args[iterator] in self.currencies:
+                    curr_list.append(args[iterator])
+                else:
+                    msgtext = f"{args[iterator]} is not a valid currency"
+                    bot.send_message(chat_id, text=msgtext, parse_mode='HTML')
+            value = curr_list
 
         self.userdata[chat_id][name] = value
         utils.save_userdata(self.userdata)
@@ -325,6 +335,19 @@ class Btfxbot:
 
         self.userdata[chat_id] = userinfo
         utils.save_userdata(self.userdata)
+
+    @ensure_authorized
+    def _cb_get_balance(self, bot, update, args):
+        LOGGER.info(f"{update.message.chat.username} : /getbalance {args}")
+        chat_id = update.message.chat.id
+
+        if not self.userdata[chat_id]['getbalance']:
+            self.send_help(chat_id, "getbalance")
+
+        balances = self.btfx_client.balances()
+        formated_balances = utils.format_balance(self.userdata[chat_id]['getbalance'], balances)
+        message = f"<pre>{formated_balances}</pre>"
+        bot.send_message(chat_id, text=message, parse_mode='HTML')
 
     @ensure_authorized
     def cb_new_order(self, bot, update, args):
@@ -533,11 +556,11 @@ class Btfxbot:
     def cb_new_price(self, bot, update, user_data):
         LOGGER.info("cb_new_price called")
         chat_id = update.message.chat.id
-        response = update.message.text
-        if not utils.isnumber(response):
+        price = update.message.text
+        if not utils.isnumber(price):
             LOGGER.info("cb_new_price not a number")
             message = (
-                f"{response} is not a valid number\n"
+                f"{price} is not a valid number\n"
                 "Please send me a valid number or tap /cancel"
             )
             update.message.reply_text(message, parse_mode='HTML')
@@ -546,18 +569,17 @@ class Btfxbot:
         bot.sendChatAction(chat_id, "TYPING")
         self.btfxwss.update_order(
             id=user_data['update_price_order_id'],
-            price=response
+            price=price
         )
-        print("cb_new_price received valid number : %s" % response)
         return ConversationHandler.END
 
     def cb_new_volume(self, bot, update, user_data):
         LOGGER.info("cb_new_volume called")
         chat_id = update.message.chat.id
-        response = update.message.text
-        if not utils.isnumber(response):
+        amount = update.message.text
+        if not utils.isnumber(amount):
             message = (
-                f"{response} is not a valid number\n"
+                f"{amount} is not a valid number\n"
                 "Please send me a valid number or tap /cancel"
             )
             bot.send_message(chat_id, text=message)
@@ -566,12 +588,8 @@ class Btfxbot:
         bot.sendChatAction(chat_id, "TYPING")
         self.btfxwss.update_order(
             id=user_data['update_volume_order_id'],
-            amount=response
+            amount=amount
         )
-        print("cb_new_price received valid number : %s" % response)
-        return ConversationHandler.END
-
-        print("cb_new_volume received text : %s" % response)
         return ConversationHandler.END
 
     def cb_cancel(self, bot, update):
@@ -607,7 +625,12 @@ class Btfxbot:
 
     def send_help(self, chat_id, help_key):
         helps = " ".join(utils.CMDHELP.keys())
-        formated_message = f"<pre>help is available for : {helps}</pre>"
+        formated_message = (
+            "<pre>"
+            f"No help is available for {help_key}\n"
+            f"Help is available for : {helps}"
+            "</pre>"
+        )
         if help_key not in utils.CMDHELP:
             self.tbot.send_message(chat_id, text=formated_message, parse_mode='HTML')
             return

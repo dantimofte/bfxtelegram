@@ -53,6 +53,7 @@ class Bfxwss(WssClient):
             'flc': self._send_flc_msg,
             'hfls': self._send_hfls_msg,
             'hfts': self._send_hfts_msg,
+            'uca': self._send_uca_msg,
             'hb': self._heartbeat_handler,
             'ou-req': self._send_oureq_msg,
             'wallet_transfer': self._send_wallettransfer_msg

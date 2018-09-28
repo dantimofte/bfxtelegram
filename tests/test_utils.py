@@ -5,7 +5,7 @@
 import glob
 import unittest
 from bfxtelegram import utils
-
+from tests.conftest import BTFX_SYMBOLS, CURRENCIES, BALANCES
 
 class UtilsTests(unittest.TestCase):
     def test_isnumber(self):
@@ -36,4 +36,30 @@ class UtilsTests(unittest.TestCase):
         )
         self.assertTrue(
             glob.glob('data/usersdata.json')
+        )
+
+    def test_get_currencies(self):
+        self.assertIsInstance(
+            utils.get_currencies(BTFX_SYMBOLS),
+            list
+        )
+
+        self.assertIn(
+            "btc",
+            utils.get_currencies(BTFX_SYMBOLS)
+        )
+
+        self.assertNotIn(
+            "blabla",
+            utils.get_currencies(BTFX_SYMBOLS)
+        )
+
+    def test_format_balance(self):
+        self.assertTrue(
+            utils.format_balance(CURRENCIES, BALANCES)
+        )
+
+        self.assertIn(
+            "iot",
+            utils.format_balance(CURRENCIES, BALANCES)
         )

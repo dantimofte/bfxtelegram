@@ -24,6 +24,7 @@ List of public commands for BotFather:
   neworder - /neworder ±volume price tradepair tradetype
   newalert - /newalert tradepair price
   set - /set option value
+  getbalance - /getbalance
   enable - /enable message_type
   disable - /disable message_type
   calc - /calc "calculation"

@@ -4,7 +4,8 @@
 sudo apt install npm
 sudo apt install git
 sudo apt install tmux
-
+sudo npm install -g phantomjs-prebuilt
+sudo apt-get install libfontconfig
 
 ##### create a new environment
 mkdir btenv
@@ -16,7 +17,7 @@ tmux new -t btfxgram
 source env/bin/activate
 
 ##### download the source code
-git clone https://github.com/dantimofte/bitfinex-telegram.git
+git clone https://github.com/dantimofte/bfxtelegram.git
 
 
 #### install requirments
@@ -27,8 +28,6 @@ pip3 install pandas
 pip3 install wheel
 pip3 install pillow
 pip3 install selenium
-sudo npm install -g phantomjs-prebuilt
-sudo apt-get install libfontconfig
 pip3 install bokeh
 
 pip3 install python-telegram-bot --upgrade

@@ -30,7 +30,7 @@ import glob
 import json
 import pickle
 import logging
-
+from decimal import Decimal
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.DEBUG)
@@ -58,6 +58,8 @@ CMDHELP = {
         "  themes : standard, colorblind, monochrome\n"
         "/set calctype type\n"
         "  ex : /set calctype position_tIOTUSD\n"
+        "/set getbalance currencie\n"
+        "  ex : /set getbalance iot usd btc eth\n"
         "</pre>"
     ),
     "auth": (
@@ -89,6 +91,21 @@ CMDHELP = {
         "New Alert is placed like this : \n"
         "/neworder symbol price\n"
         "/neworder iotusd 4.00"
+        "</pre>"
+    ),
+    "graph": (
+        "<pre>"
+        "This return a picture containing the hourly candle chart"
+        "Please give a valid trading pair for which  you want the graphic or set a default one "
+        "using :\n/set defaultpair iotusd\n"
+        "example :\n/graph \n/graph iotusd"
+        "<pre>"
+    ),
+    "getbalance": (
+        "<pre>"
+        "getbalance will return a list of balances for the currencies you set using /set\n"
+        "example : /set getbalance iot usd btc\n"
+        "example : /getbalance\n"
         "</pre>"
     )
 }
@@ -137,3 +154,77 @@ def save_userdata(userdata):
     human_readable_file = "data/usersdata.json"
     with open(human_readable_file, 'w') as outfile:
         json.dump(userdata, outfile)
+
+
+def get_currencies(btfx_symbols):
+    """
+        Extract all currencies from the list of tradepairs available on bitfinex
+        returns a list
+    """
+    currencies = []
+    for symbol in btfx_symbols:
+        currencies.append(symbol[:3])
+        currencies.append(symbol[3:])
+    currencies = list(set(currencies))
+    return currencies
+
+
+def format_balance(currencies, balances):
+    # remove balance for currencies not in users list
+    balances = [balance for balance in balances if balance['currency'] in currencies]
+    # determine max width for each column
+    width_eamt = max([len(bal['amount']) for bal in balances if bal['type'] == 'exchange'])
+    width_eavl = max([len(bal['available']) for bal in balances if bal['type'] == 'exchange'])
+    width_tamt = max([len(bal['amount']) for bal in balances if bal['type'] == 'trading'])
+    width_tavl = max([len(bal['available']) for bal in balances if bal['type'] == 'trading'])
+    width_damt = max([len(bal['amount']) for bal in balances if bal['type'] == 'deposit'])
+    width_davl = max([len(bal['available']) for bal in balances if bal['type'] == 'deposit'])
+
+    # initialize dictionary from which lines will be obtained
+    bal_dict = {}
+    for currency in currencies:
+        bal_dict[currency] = {
+            "exchange": {"amount": "0.0", "available": "0.0"},
+            "trading": {"amount": "0.0", "available": "0.0"},
+            "deposit": {"amount": "0.0", "available": "0.0"}
+        }
+
+    # update values with real values from balances
+    for balance in balances:
+        currency = balance['currency']
+        ctype = balance['type']
+        bal_dict[currency][ctype]["amount"] = balance["amount"]
+        bal_dict[currency][ctype]["available"] = balance["available"]
+
+    # build formated message
+    lines = []
+    width_exchange = width_eamt + width_eavl + 4
+    width_trading = width_tamt + width_tavl + 5
+    width_deposit = width_damt + width_davl + 4
+    header_line = (
+        "      "
+        f"{'exchange':^{width_exchange}}"
+        "||"
+        f"{'margin':^{width_trading}}"
+        "||"
+        f"{'funding':^{width_deposit}}"
+        "\n"
+    )
+    lines.append(header_line)
+    for curr, val in bal_dict.items():
+        eamt = Decimal(val['exchange']['amount'])
+        eavl = Decimal(val['exchange']['available'])
+        tamt = Decimal(val['trading']['amount'])
+        tavl = Decimal(val['trading']['available'])
+        damt = Decimal(val['deposit']['amount'])
+        davl = Decimal(val['deposit']['available'])
+        line = (
+            f"{curr}   "
+            f"{eamt:{width_eamt}} : {eavl:{width_eavl}} || "
+            f"{tamt:{width_tamt}} : {tavl:{width_tavl}} || "
+            f"{damt:{width_damt}} : {davl:{width_davl}}\n"
+        )
+        lines.append(line)
+
+    balances_message = "".join(lines)
+    return balances_message
