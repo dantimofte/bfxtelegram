@@ -51,3 +51,6 @@ Please check the `wiki <https://github.com/dantimofte/bfxtelegram/wiki>`_
 3d
 
 <img src="https://i.imgur.com/IIVvJ0v.gif" width="100" height="100">
+
+.. image:: https://i.imgur.com/IIVvJ0v.gif
+   :alt: animated_demo
