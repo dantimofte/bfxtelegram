@@ -33,7 +33,6 @@ List of public commands for BotFather:
 =============
 Demo
 =============
-[Imgur](https://i.imgur.com/IIVvJ0v.gifv)
 .. only:: html
 
    .. figure:: https://i.imgur.com/IIVvJ0v.gifv
@@ -44,3 +43,5 @@ Demo
 Documentation
 =============
 Please check the `wiki <https://github.com/dantimofte/bfxtelegram/wiki>`_
+
+![](https://i.imgur.com/IIVvJ0v.gifv)
