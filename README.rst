@@ -31,6 +31,16 @@ List of public commands for BotFather:
   help - /help "command"
 
 =============
+Demo
+=============
+[Imgur](https://i.imgur.com/IIVvJ0v.gifv)
+.. only:: html
+
+   .. figure:: https://i.imgur.com/IIVvJ0v.gifv
+
+      "Using the bot" 
+
+=============
 Documentation
 =============
 Please check the `wiki <https://github.com/dantimofte/bfxtelegram/wiki>`_
