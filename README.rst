@@ -35,7 +35,7 @@ Demo
 =============
 .. only:: html
 
-   .. figure:: https://i.imgur.com/IIVvJ0v.gif
+   .. figure:: https://i.imgur.com/xtyD5qC.gif
 
       "Using the bot" 
 
@@ -46,11 +46,11 @@ Please check the `wiki <https://github.com/dantimofte/bfxtelegram/wiki>`_
 
 2nd
 
-![](https://i.imgur.com/IIVvJ0v.gif)
+![aa](https://i.imgur.com/xtyD5qC.gif)
 
 3d
 
-<img src="https://i.imgur.com/IIVvJ0v.gif" width="100" height="100">
+<img src="https://i.imgur.com/xtyD5qC.gif" width="100" height="100">
 
-.. image:: https://i.imgur.com/IIVvJ0v.gif
+.. image:: https://i.imgur.com/xtyD5qC.gif
    :alt: animated_demo
