@@ -11,10 +11,14 @@ import os
 from bfxtelegram.btfxbot import Btfxbot
 
 
-if __name__ == "__main__":
+def main():
     Btfxbot(
         os.environ.get('TELEGRAM_TOKEN'),
         os.environ.get('AUTH_PASS'),
         os.environ.get('BFX_TELEGRAM_KEY'),
         os.environ.get('BFX_TELEGRAM_SECRET')
     )
+
+
+if __name__ == "__main__":
+    main()

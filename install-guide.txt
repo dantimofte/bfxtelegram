@@ -12,6 +12,7 @@ sudo apt-get install python3-venv
 mkdir btenv
 cd btenv
 python3 -m venv env
+pip3 install --upgrade setuptools pip
 
 #start tmux session so it continues running after you log out
 tmux new -t btfxgram
