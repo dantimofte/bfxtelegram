@@ -33,9 +33,8 @@ List of public commands for BotFather:
 =============
 Demo
 =============
-.. only:: html
 
-   .. figure:: https://i.imgur.com/CbZTEtl.png
+.. image:: https://i.imgur.com/CbZTEtl.png
 
 
 =============
