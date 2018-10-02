@@ -6,6 +6,7 @@ sudo apt install git
 sudo apt install tmux
 sudo npm install -g phantomjs-prebuilt
 sudo apt-get install libfontconfig
+sudo apt-get install python3-venv
 
 ##### create a new environment
 mkdir btenv
