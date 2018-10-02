@@ -36,6 +36,12 @@ Demo
 
 .. image:: https://i.imgur.com/CbZTEtl.png
 
+.. image:: https://i.imgur.com/ZK9vl7w.png
+
+.. image:: https://i.imgur.com/SNNcR0p.png
+
+.. image:: https://i.imgur.com/Pv5slp4.png
+
 
 =============
 Documentation
