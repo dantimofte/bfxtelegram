@@ -35,22 +35,11 @@ Demo
 =============
 .. only:: html
 
-   .. figure:: https://i.imgur.com/xtyD5qC.gif
+   .. figure:: https://i.imgur.com/CbZTEtl.png
 
-      "Using the bot" 
 
 =============
 Documentation
 =============
 Please check the `wiki <https://github.com/dantimofte/bfxtelegram/wiki>`_
 
-2nd
-
-![aa](https://i.imgur.com/xtyD5qC.gif)
-
-3d
-
-<img src="https://i.imgur.com/xtyD5qC.gif" width="100" height="100">
-
-.. image:: https://i.imgur.com/xtyD5qC.gif
-   :alt: animated_demo

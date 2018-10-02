@@ -83,7 +83,7 @@ CMDHELP = {
         "    funding_sym_SYMBOL\n"
         "    position_SYMBOL\n"
         "    wallet_WALLET-TYPE_CURRENCY\n"
-        "Or specify a default calculation using /option"
+        "Or specify a default calculation using /set"
         "</pre>"
     ),
     "newalert": (

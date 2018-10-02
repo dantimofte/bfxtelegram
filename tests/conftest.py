@@ -725,7 +725,7 @@ BTFX_SYMBOLS = [
     'gotusd', 'goteur', 'goteth', 'xtzusd', 'xtzbtc', 'cnnusd', 'cnneth', 'boxusd', 'boxeth'
 ]
 
-CURRENCIES = ['iot','usd','btc','eth']
+CURRENCIES = ['iot', 'usd', 'btc', 'eth']
 
 BALANCES = [
     {'type': 'deposit', 'currency': 'bch', 'amount': '0.0', 'available': '0.0'},

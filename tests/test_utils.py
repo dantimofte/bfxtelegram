@@ -7,6 +7,7 @@ import unittest
 from bfxtelegram import utils
 from tests.conftest import BTFX_SYMBOLS, CURRENCIES, BALANCES
 
+
 class UtilsTests(unittest.TestCase):
     def test_isnumber(self):
         self.assertTrue(
