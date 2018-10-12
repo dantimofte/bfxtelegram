@@ -1,17 +1,16 @@
 from setuptools import setup, find_packages
 
-VERSION = '1.0.1'
+VERSION = '1.0.2'
 
 # Runtime dependencies. See requirements.txt for development dependencies.
 DEPENDENCIES = [
-    "pandas",
-    "python-telegram-bot",
     "wheel",
+    "pandas",
     "pillow",
     "selenium",
     "bokeh",
     "python-telegram-bot",
-    "bitfinex-v2"
+    "bitfinex-v2==1.0.0"
 ]
 
 setup(

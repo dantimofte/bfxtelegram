@@ -9,41 +9,24 @@ sudo apt-get install libfontconfig
 sudo apt-get install python3-venv
 
 ##### create a new environment
-mkdir btenv
-cd btenv
+mkdir btest
+cd btest
 python3 -m venv env
-pip3 install --upgrade setuptools pip
-
-#start tmux session so it continues running after you log out
 tmux new -t btfxgram
 source env/bin/activate
-
-##### download the source code
-git clone https://github.com/dantimofte/bfxtelegram.git
-
-
-#### install requirments
-pip3 install pandas
-
-
-####bokeh dependencies and finaly bokeh
-pip3 install wheel
-pip3 install pillow
-pip3 install selenium
-pip3 install bokeh
-
-pip3 install python-telegram-bot --upgrade
-pip3 install bitfinex-v2
+pip3 install --upgrade setuptools pip wheel
+pip3 install bfxtelegram
 
 echo "export TELEGRAM_TOKEN=dsfdsfds
-export BFX_TELEGRAM_KEY=sdfdsgfsd
-export BFX_TELEGRAM_SECRET=dsfdsfgdsfsd
+export BFX_API_KEY=sdfdsgfsd
+export BFX_API_SECRET=dsfdsfgdsfsd
 export AUTH_PASS=somepass
 " > .env
 
 . .env
 
-./main.py
+bfxtelegram
+
 ctrl+b d   #detach from tmux window
 
 

@@ -1,8 +1,0 @@
-pandas
-python-telegram-bot
-wheel
-pillow
-selenium
-bokeh
-python-telegram-bot
-bitfinex-v2

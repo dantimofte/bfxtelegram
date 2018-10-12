@@ -2,7 +2,7 @@
 """
 MIT License
 
-Copyright (c) 2018 Timofte Dan
+Copyright (c) 2018 Dan Timofte
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -118,6 +118,8 @@ WS_MSG_TYPES = [
     'uca', 'ou-req', 'wallet_transfer'
 ]
 
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+
 
 def isnumber(pnumber):
     num_format = re.compile(r"^[\-]?[0-9]*\.?[0-9]*$")
@@ -134,7 +136,8 @@ def ensure_dir(file_path):
 
 
 def read_userdata():
-    files = glob.glob('data/usersdata.pickle')
+    userdata_file = os.path.join(ROOT_DIR, 'data/usersdata.pickle')
+    files = glob.glob(userdata_file)
     if not files:
         return {}
     with open(files[0], 'rb') as usersdata_file:
@@ -147,11 +150,11 @@ def read_userdata():
 
 
 def save_userdata(userdata):
-    userdata_file = "data/usersdata.pickle"
+    userdata_file = os.path.join(ROOT_DIR, 'data/usersdata.pickle')
+    human_readable_file = os.path.join(ROOT_DIR, 'data/usersdata.json')
     ensure_dir(userdata_file)
     with open(userdata_file, 'wb') as outfile:
         pickle.dump(userdata, outfile)
-    human_readable_file = "data/usersdata.json"
     with open(human_readable_file, 'w') as outfile:
         json.dump(userdata, outfile)
 
