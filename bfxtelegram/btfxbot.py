@@ -72,6 +72,7 @@ class Btfxbot:
         qdp.add_handler(CommandHandler("orders", self._cb_orders, pass_args=True))
         qdp.add_handler(CommandHandler("calc", self._cb_calc, pass_args=True))
         qdp.add_handler(CommandHandler("help", self._cb_help, pass_args=True))
+        qdp.add_handler(CommandHandler("ticker", self.ticker, pass_args=True))
 
         update_volume_handler = CallbackQueryHandler(
             self.cb_btn_update_volume,
@@ -635,3 +636,64 @@ class Btfxbot:
             self.tbot.send_message(chat_id, text=formated_message, parse_mode='HTML')
             return
         self.tbot.send_message(chat_id, text=utils.CMDHELP[help_key], parse_mode='HTML')
+
+    @ensure_authorized
+    def ticker(self, bot, update, args):
+        """
+            Callback method used to requests pair ticker from the bot
+            Sends ticker to telegramm
+        """
+        LOGGER.info(f"{update.message.chat.username} : tiker = {args}")
+        chat_id = update.message.chat.id
+
+        if len(args) < 1 and 'defaultpair' not in self.userdata[chat_id]:
+            self.send_help(chat_id, "ticker")
+            return
+        if 'defaultpair' in self.userdata[chat_id]:
+            default_pair = self.userdata[chat_id]['defaultpair']
+        symbol = args[0] if args else default_pair
+        if symbol not in self.btfx_symbols:
+            msgtext = f"incorect tradepair , available pairs are {self.btfx_symbols}"
+            bot.send_message(chat_id, text=msgtext, parse_mode='HTML')
+            return
+        tradepair = f"t{symbol.upper()}"
+        ticker = self.btfx_client2.ticker(symbol=tradepair)
+        currency_1 = tradepair[1:4]
+        currency_2 = tradepair[-3:]
+        if currency_2 in ("BTC", "ETH"):
+            last_price = format(ticker[6], '.9f')
+            bid = format(ticker[0], '.9f')
+            bid_size = round(ticker[1], 2)
+            ask = format(ticker[2], '.9f')
+            ask_size = round(ticker[3], 2)
+            daily_change = format(ticker[4], '.9f')
+            daily_change_perc = round(ticker[5] * 100, 2)
+            volume = round(ticker[7], 2)
+            high = format(ticker[8], '.9f')
+            low = format(ticker[9], '.9f')
+        else:
+            last_price = round(ticker[6], 4)
+            bid = round(ticker[0], 4)
+            bid_size = round(ticker[1], 2)
+            ask = round(ticker[2], 4)
+            ask_size = round(ticker[3], 2)
+            daily_change = round(ticker[4], 4)
+            daily_change_perc = round(ticker[5] * 100, 2)
+            volume = round(ticker[7], 2)
+            high = round(ticker[8], 4)
+            low = round(ticker[9], 4)
+        unicode_symbols = {"BTC": "Ƀ", "ETH": "Ξ", "LTC": "Ł", "IOT": "Mi", "USD": "$", "EUR": "€", "GBP": "£"}
+        if currency_1 in unicode_symbols.keys():
+            currency_1 = unicode_symbols[currency_1]
+        if currency_2 in unicode_symbols.keys():
+            currency_2 = unicode_symbols[currency_2]
+        message = (
+            "<pre>" f"Last price: {last_price} {currency_2}, Volume: {volume} {currency_1}\nBid:{bid} {currency_2}, Bid size: {bid_size} {currency_1}\nAsk: {ask} {currency_2}, Ask size: {ask_size} {currency_1}\n"
+            f"Daily change: {daily_change} {currency_2} {daily_change_perc}%\nHIGH: {high} {currency_2}, LOW: {low} {currency_2}"
+            "</pre>")
+        try:
+            bot.send_message(chat_id, text=message, parse_mode='HTML')
+        except(TimedOut, TelegramError) as error:
+            LOGGER.info(f"coult not send message to {chat_id}")
+            LOGGER.warning(error)
+
