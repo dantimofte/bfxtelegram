@@ -19,7 +19,7 @@ from bfxtelegram.tgraph import Tgraph
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    level=logging.DEBUG)
+                    level=logging.ERROR)
 LOGGER = logging.getLogger(__name__)
 
 UPDPRICE = 0
