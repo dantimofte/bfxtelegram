@@ -99,7 +99,7 @@ CMDHELP = {
         "Please give a valid trading pair for which  you want the graphic or set a default one "
         "using :\n/set defaultpair iotusd\n"
         "example :\n/graph \n/graph iotusd"
-        "<pre>"
+        "</pre>"
     ),
     "ticker": (
         "<pre>"
