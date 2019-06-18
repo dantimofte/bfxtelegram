@@ -97,9 +97,12 @@ class Bfxwss(WssClient):
         """
         LOGGER.debug(f"_system_handler(): Received a system message: {data}")
         event = data.pop('event')
+
         if event == 'info':
             LOGGER.info(f"_system_handler(): Distributing {data} to _info_handler..")
             self._info_handler(data)
+        elif event == 'auth':
+            pass
         else:
             LOGGER.error("Unhandled event: %s, data: %s", event, data)
 
